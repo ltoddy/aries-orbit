@@ -1,10 +1,8 @@
-use agent_client_protocol::{
-    Agent, ConnectionTo, Error, Responder,
-    schema::v1::{
-        RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse,
-        SelectedPermissionOutcome,
-    },
+use agent_client_protocol::schema::v1::{
+    RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse,
+    SelectedPermissionOutcome,
 };
+use agent_client_protocol::{Agent, ConnectionTo, Error, Responder};
 use async_channel::Sender;
 use tokio::sync::{oneshot, watch};
 
@@ -19,19 +17,14 @@ pub async fn handle(
 ) -> Result<(), Error> {
     let (response, answer) = oneshot::channel();
     let permission = Permission::new(
-        request
-            .tool_call
-            .fields
-            .title
-            .unwrap_or_else(|| "Agent 请求授权".into()),
+        request.tool_call.fields.title.unwrap_or_else(|| "Agent 请求授权".into()),
         request.options,
         response,
     );
     let already_cancelled = *cancelled.borrow_and_update();
     if already_cancelled || events.send(Event::Permission(permission)).await.is_err() {
-        return responder.respond(RequestPermissionResponse::new(
-            RequestPermissionOutcome::Cancelled,
-        ));
+        return responder
+            .respond(RequestPermissionResponse::new(RequestPermissionOutcome::Cancelled));
     }
     connection.spawn(async move {
         let choice = tokio::select! {

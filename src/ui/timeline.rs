@@ -1,19 +1,13 @@
-use gpui_kit::{
-    assets::IconName,
-    component::{
-        Icon, Sizable,
-        button::{Button, ButtonVariants},
-        text::TextView,
-    },
-    prelude::*,
-    *,
-};
+use gpui_kit::assets::IconName;
+use gpui_kit::component::button::{Button, ButtonVariants};
+use gpui_kit::component::text::TextView;
+use gpui_kit::component::{Icon, Sizable};
+use gpui_kit::prelude::*;
+use gpui_kit::*;
 
-use crate::{
-    chat::{Message, Role},
-    session_update::code_block,
-    ui::{ChatView, palette::Palette},
-};
+use crate::session::chat::{Message, Role};
+use crate::ui::ChatView;
+use crate::ui::palette::Palette;
 
 impl ChatView {
     pub fn render_timeline(&self, p: Palette, cx: &mut Context<Self>) -> AnyElement {
@@ -88,17 +82,14 @@ impl ChatView {
                             .enumerate()
                             .map(|(index, message)| self.timeline_item(index, message, p, cx)),
                     )
-                    .when(
-                        self.chat.is_busy() || self.loading_session.is_some(),
-                        |list| {
-                            list.child(
-                                div()
-                                    .text_size(px(12.))
-                                    .text_color(p.muted())
-                                    .child(self.status.clone()),
-                            )
-                        },
-                    )
+                    .when(self.chat.is_busy() || self.loading_session.is_some(), |list| {
+                        list.child(
+                            div()
+                                .text_size(px(12.))
+                                .text_color(p.muted())
+                                .child(self.status.clone()),
+                        )
+                    })
                     .when_some(self.chat.error().map(str::to_owned), |list, error| {
                         list.child(
                             div()
@@ -132,11 +123,7 @@ impl ChatView {
             .flex_col()
             .gap_2()
             .when(card, |body| {
-                body.p_3()
-                    .rounded(px(12.))
-                    .bg(p.input())
-                    .border_1()
-                    .border_color(p.border())
+                body.p_3().rounded(px(12.)).bg(p.input()).border_1().border_color(p.border())
             })
             .when(card || !message.updates().is_empty(), |body| {
                 body.child(
@@ -160,10 +147,7 @@ impl ChatView {
                 )
             })
             .child(if user {
-                div()
-                    .line_height(px(24.))
-                    .child(message.text().to_owned())
-                    .into_any_element()
+                div().line_height(px(24.)).child(message.text().to_owned()).into_any_element()
             } else {
                 TextView::markdown(
                     ("markdown", index),
@@ -181,25 +165,17 @@ impl ChatView {
                 .into_any_element()
             })
             .when_some(self.images.get(&index), |body, images| {
-                body.child(
-                    div()
-                        .id(("images", index))
-                        .w_full()
-                        .flex()
-                        .flex_col()
-                        .gap_2()
-                        .children(images.iter().map(|image| {
-                            img(image.clone())
-                                .w_full()
-                                .h(px(200.))
-                                .object_fit(ObjectFit::Contain)
-                                .with_fallback(|| {
-                                    div()
-                                        .child("图片无法预览，可展开完整数据查看")
-                                        .into_any_element()
-                                })
-                        })),
-                )
+                body.child(div().id(("images", index)).w_full().flex().flex_col().gap_2().children(
+                    images.iter().map(|image| {
+                        img(image.clone())
+                            .w_full()
+                            .h(px(200.))
+                            .object_fit(ObjectFit::Contain)
+                            .with_fallback(|| {
+                                div().child("图片无法预览，可展开完整数据查看").into_any_element()
+                            })
+                    }),
+                ))
             })
             .when(!message.updates().is_empty(), |body| {
                 body.child(
@@ -207,11 +183,7 @@ impl ChatView {
                         .ghost()
                         .xsmall()
                         .self_start()
-                        .label(if expanded {
-                            "收起完整数据"
-                        } else {
-                            "完整数据"
-                        })
+                        .label(if expanded { "收起完整数据" } else { "完整数据" })
                         .icon(
                             Icon::new(if expanded {
                                 IconName::ChevronDown
@@ -229,24 +201,25 @@ impl ChatView {
                 )
             })
             .when(expanded, |body| {
-                let raw = serde_json::to_string_pretty(message.updates()).unwrap_or_else(|error| {
-                    format!("无法序列化会话更新：{error}\n\n{:#?}", message.updates())
-                });
+                let details = message.details();
                 body.child(
                     div()
                         .id(("raw-update", index))
-                        .aria_value(raw.clone())
+                        .aria_value(SharedString::from(details.raw()))
                         .max_h(px(320.))
                         .overflow_y_scroll()
                         .p_2()
                         .rounded(px(8.))
                         .bg(p.background())
                         .child(
-                            TextView::markdown(("raw-markdown", index), code_block("json", &raw))
-                                .selectable(true)
-                                .scrollable(false)
-                                .w_full()
-                                .text_size(px(12.)),
+                            TextView::markdown(
+                                ("raw-markdown", index),
+                                SharedString::from(details.markdown()),
+                            )
+                            .selectable(true)
+                            .scrollable(false)
+                            .w_full()
+                            .text_size(px(12.)),
                         ),
                 )
             });
@@ -261,12 +234,7 @@ impl ChatView {
                 div()
                     .min_w_0()
                     .when(user, |bubble| {
-                        bubble
-                            .max_w(relative(0.72))
-                            .px_3()
-                            .py_2()
-                            .rounded(px(16.))
-                            .bg(p.bubble())
+                        bubble.max_w(relative(0.72)).px_3().py_2().rounded(px(16.)).bg(p.bubble())
                     })
                     .when(!user, |bubble| bubble.w_full())
                     .child(body),

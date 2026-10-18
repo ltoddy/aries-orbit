@@ -1,9 +1,8 @@
-use std::{collections::HashSet, time::Duration};
+use std::collections::HashSet;
+use std::time::Duration;
 
-use agent_client_protocol::{
-    Agent, ConnectionTo, Error,
-    schema::v1::{ListSessionsRequest, SessionInfo},
-};
+use agent_client_protocol::schema::v1::{ListSessionsRequest, SessionInfo};
+use agent_client_protocol::{Agent, ConnectionTo, Error};
 use async_channel::Sender;
 
 use crate::acp::Event;
@@ -25,9 +24,7 @@ async fn fetch(connection: &ConnectionTo<Agent>) -> Result<Vec<SessionInfo>, Err
     loop {
         let response = tokio::time::timeout(
             Duration::from_secs(30),
-            connection
-                .send_request(ListSessionsRequest::new().cursor(cursor))
-                .block_task(),
+            connection.send_request(ListSessionsRequest::new().cursor(cursor)).block_task(),
         )
         .await
         .map_err(|_| Error::internal_error().data("获取会话列表超时"))??;

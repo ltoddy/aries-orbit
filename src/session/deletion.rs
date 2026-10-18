@@ -9,7 +9,7 @@ enum DeletionState {
 }
 
 #[derive(Debug, Default)]
-pub struct SessionActions {
+pub struct SessionDeletion {
     deletion: DeletionState,
     error: Option<String>,
     notice: Option<String>,
@@ -31,7 +31,7 @@ impl PendingDeletion {
     }
 }
 
-impl SessionActions {
+impl SessionDeletion {
     pub fn is_busy(&self) -> bool {
         !matches!(self.deletion, DeletionState::Idle)
     }

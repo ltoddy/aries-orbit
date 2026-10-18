@@ -1,9 +1,8 @@
-use std::{collections::HashSet, time::Duration};
+use std::collections::HashSet;
+use std::time::Duration;
 
-use agent_client_protocol::{
-    Agent, ConnectionTo, Error,
-    schema::v1::{DeleteSessionRequest, SessionId},
-};
+use agent_client_protocol::schema::v1::{DeleteSessionRequest, SessionId};
+use agent_client_protocol::{Agent, ConnectionTo, Error};
 
 #[derive(Debug, Default)]
 pub struct DeletionReport {
@@ -12,10 +11,6 @@ pub struct DeletionReport {
 }
 
 impl DeletionReport {
-    pub fn deleted(&self) -> &[SessionId] {
-        &self.deleted
-    }
-
     pub fn into_parts(self) -> (Vec<SessionId>, Vec<(SessionId, Error)>) {
         (self.deleted, self.failed)
     }
@@ -23,10 +18,7 @@ impl DeletionReport {
     pub fn rejected(ids: Vec<SessionId>, message: &str) -> Self {
         Self {
             deleted: Vec::new(),
-            failed: ids
-                .into_iter()
-                .map(|id| (id, Error::internal_error().data(message)))
-                .collect(),
+            failed: ids.into_iter().map(|id| (id, Error::internal_error().data(message))).collect(),
         }
     }
 }
@@ -37,9 +29,7 @@ pub async fn request(connection: &ConnectionTo<Agent>, ids: Vec<SessionId>) -> D
     for id in ids.into_iter().filter(|id| seen.insert(id.clone())) {
         let response = tokio::time::timeout(
             Duration::from_secs(30),
-            connection
-                .send_request(DeleteSessionRequest::new(id.clone()))
-                .block_task(),
+            connection.send_request(DeleteSessionRequest::new(id.clone())).block_task(),
         )
         .await
         .map_err(|_| Error::internal_error().data("删除会话超时，刷新列表以确认结果"))

@@ -2,7 +2,7 @@ use agent_client_protocol::schema::v1::{
     SessionId, SessionInfo, SessionNotification, SessionUpdate,
 };
 
-use crate::chat::Chat;
+use crate::session::chat::Chat;
 
 #[derive(Debug)]
 pub struct SessionLoad {
@@ -15,11 +15,7 @@ impl SessionLoad {
     pub fn new(session: SessionInfo) -> Self {
         let mut chat = Chat::default();
         chat.set_title(session.title.clone());
-        Self {
-            session,
-            chat,
-            tokens: None,
-        }
+        Self { session, chat, tokens: None }
     }
 
     pub fn session_id(&self) -> &SessionId {

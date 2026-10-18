@@ -1,8 +1,5 @@
-use gpui_kit::{
-    App, Hsla, WindowAppearance,
-    component::{Theme, ThemeMode},
-    rgb,
-};
+use gpui_kit::component::{Theme, ThemeMode};
+use gpui_kit::{App, Hsla, WindowAppearance, rgb};
 
 use crate::preferences::Appearance;
 
@@ -58,28 +55,9 @@ impl Palette {
                 0xb91c1c,
             ],
         };
-        let [
-            background,
-            sidebar,
-            input,
-            bubble,
-            foreground,
-            muted,
-            border,
-            hover,
-            danger,
-        ] = colors.map(|color| rgb(color).into());
-        Self {
-            background,
-            sidebar,
-            input,
-            bubble,
-            foreground,
-            muted,
-            border,
-            hover,
-            danger,
-        }
+        let [background, sidebar, input, bubble, foreground, muted, border, hover, danger] =
+            colors.map(|color| rgb(color).into());
+        Self { background, sidebar, input, bubble, foreground, muted, border, hover, danger }
     }
 }
 

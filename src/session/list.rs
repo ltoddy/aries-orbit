@@ -1,12 +1,8 @@
-use std::{
-    collections::HashSet,
-    path::{Path, PathBuf},
-};
+use std::collections::{BTreeMap, HashMap, HashSet};
+use std::path::{Path, PathBuf};
 
-use agent_client_protocol::{
-    Error,
-    schema::v1::{SessionId, SessionInfo, SessionInfoUpdate},
-};
+use agent_client_protocol::Error;
+use agent_client_protocol::schema::v1::{SessionId, SessionInfo, SessionInfoUpdate};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 enum ListState {
@@ -21,6 +17,8 @@ enum ListState {
 #[derive(Debug, Default)]
 pub struct SessionList {
     entries: Vec<SessionInfo>,
+    projects: BTreeMap<PathBuf, Vec<usize>>,
+    indices: HashMap<SessionId, usize>,
     expanded_cwds: HashSet<PathBuf>,
     state: ListState,
     refresh_pending: bool,
@@ -33,9 +31,29 @@ impl SessionList {
     }
 
     pub fn session(&self, id: &SessionId) -> Option<&SessionInfo> {
-        self.entries
+        self.indices.get(id).map(|&index| &self.entries[index])
+    }
+
+    pub fn projects(&self) -> impl Iterator<Item = &Path> {
+        self.projects.keys().map(PathBuf::as_path)
+    }
+
+    pub fn project_sessions(&self, cwd: &Path) -> impl ExactSizeIterator<Item = &SessionInfo> {
+        self.projects
+            .get(cwd)
+            .map(Vec::as_slice)
+            .unwrap_or_default()
             .iter()
-            .find(|session| &session.session_id == id)
+            .map(|&index| &self.entries[index])
+    }
+
+    fn rebuild_indices(&mut self) {
+        self.projects.clear();
+        self.indices.clear();
+        for (index, session) in self.entries.iter().enumerate() {
+            self.projects.entry(session.cwd.clone()).or_default().push(index);
+            self.indices.insert(session.session_id.clone(), index);
+        }
     }
 
     pub fn is_supported(&self) -> bool {
@@ -68,11 +86,7 @@ impl SessionList {
         if self.state != ListState::Connecting {
             return;
         }
-        self.state = if supported {
-            ListState::Ready
-        } else {
-            ListState::Unsupported
-        };
+        self.state = if supported { ListState::Ready } else { ListState::Unsupported };
     }
 
     pub fn disconnect(&mut self, error: String) {
@@ -118,6 +132,7 @@ impl SessionList {
                     .into_iter()
                     .filter(|session| ids.insert(session.session_id.clone()))
                     .collect();
+                self.rebuild_indices();
                 self.error = None;
             }
             Err(error) => self.error = Some(error.to_string()),
@@ -125,19 +140,16 @@ impl SessionList {
     }
 
     pub fn update(&mut self, id: &SessionId, update: &SessionInfoUpdate) {
-        if let Some(session) = self
-            .entries
-            .iter_mut()
-            .find(|session| &session.session_id == id)
-        {
+        if let Some(&index) = self.indices.get(id) {
+            let session = &mut self.entries[index];
             update.title.clone().update_to(&mut session.title);
             update.updated_at.clone().update_to(&mut session.updated_at);
         }
     }
 
     pub fn remove_sessions(&mut self, ids: &HashSet<SessionId>) {
-        self.entries
-            .retain(|session| !ids.contains(&session.session_id));
+        self.entries.retain(|session| !ids.contains(&session.session_id));
+        self.rebuild_indices();
     }
 
     pub fn is_project_expanded(&self, cwd: &Path) -> bool {
@@ -149,8 +161,7 @@ impl SessionList {
     }
 
     pub fn expand_all(&mut self) {
-        self.expanded_cwds
-            .extend(self.entries.iter().map(|session| session.cwd.clone()));
+        self.expanded_cwds.extend(self.projects.keys().cloned());
     }
 
     pub fn collapse_all(&mut self) {

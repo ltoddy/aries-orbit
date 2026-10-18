@@ -1,12 +1,12 @@
-use agent_client_protocol::schema::{
-    MaybeUndefined,
-    v1::{
-        CompactionStatus, CompactionUpdate, ContentBlock, ContentChunk, SessionNotification,
-        SessionUpdate,
-    },
+use std::sync::{Arc, OnceLock};
+
+use agent_client_protocol::schema::MaybeUndefined;
+use agent_client_protocol::schema::v1::{
+    CompactionStatus, CompactionUpdate, ContentBlock, ContentChunk, SessionNotification,
+    SessionUpdate,
 };
 
-use crate::session_update::UpdateDisplay;
+use crate::session::display::{UpdateDisplay, code_block};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Role {
@@ -23,6 +23,23 @@ pub struct Message {
     text: String,
     updates: Vec<SessionNotification>,
     compaction: Option<CompactionUpdate>,
+    details: OnceLock<UpdateDetails>,
+}
+
+#[derive(Clone, Debug)]
+pub struct UpdateDetails {
+    raw: Arc<str>,
+    markdown: Arc<str>,
+}
+
+impl UpdateDetails {
+    pub fn raw(&self) -> Arc<str> {
+        self.raw.clone()
+    }
+
+    pub fn markdown(&self) -> Arc<str> {
+        self.markdown.clone()
+    }
 }
 
 impl Message {
@@ -40,6 +57,15 @@ impl Message {
     }
     pub fn compaction(&self) -> Option<&CompactionUpdate> {
         self.compaction.as_ref()
+    }
+
+    pub fn details(&self) -> &UpdateDetails {
+        self.details.get_or_init(|| {
+            let raw = serde_json::to_string_pretty(&self.updates).unwrap_or_else(|error| {
+                format!("无法序列化会话更新：{error}\n\n{:#?}", self.updates)
+            });
+            UpdateDetails { markdown: code_block("json", &raw).into(), raw: raw.into() }
+        })
     }
 }
 
@@ -75,6 +101,7 @@ impl Chat {
             text: text.into(),
             updates: Vec::new(),
             compaction: None,
+            details: OnceLock::new(),
         });
         self.busy = true;
         self.error = None;
@@ -106,6 +133,7 @@ impl Chat {
                 })
             {
                 self.messages[index].text.push_str(&content.text);
+                self.messages[index].details.take();
                 self.messages[index].updates.push(notification);
                 return index;
             }
@@ -116,6 +144,7 @@ impl Chat {
                 text: content.text.clone(),
                 updates: vec![notification],
                 compaction: None,
+                details: OnceLock::new(),
             });
         } else {
             self.end_segment();
@@ -126,6 +155,7 @@ impl Chat {
                 text,
                 updates: vec![notification],
                 compaction: None,
+                details: OnceLock::new(),
             });
         }
         self.messages.len() - 1
@@ -141,10 +171,7 @@ impl Chat {
             .messages
             .iter()
             .position(|message| {
-                message
-                    .compaction
-                    .as_ref()
-                    .is_some_and(|state| &state.compaction_id == id)
+                message.compaction.as_ref().is_some_and(|state| &state.compaction_id == id)
                     && message
                         .updates
                         .first()
@@ -160,14 +187,13 @@ impl Chat {
                         id.clone(),
                         CompactionStatus::InProgress,
                     )),
+                    details: OnceLock::new(),
                 });
                 self.messages.len() - 1
             });
         let message = &mut self.messages[index];
-        let state = message
-            .compaction
-            .as_mut()
-            .expect("compaction entry has state");
+        message.details.take();
+        let state = message.compaction.as_mut().expect("compaction entry has state");
         match &notification.update {
             SessionUpdate::CompactionUpdate(patch) => {
                 state.status = patch.status.clone();
@@ -215,10 +241,7 @@ impl Chat {
     }
 
     pub fn title(&self) -> String {
-        if let Some(title) = self
-            .session_title
-            .as_deref()
-            .filter(|title| !title.trim().is_empty())
+        if let Some(title) = self.session_title.as_deref().filter(|title| !title.trim().is_empty())
         {
             return title.to_owned();
         }

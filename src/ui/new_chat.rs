@@ -12,10 +12,7 @@ pub enum NewChatAction {
 
 impl ChatView {
     pub fn can_start_new_chat(&self) -> bool {
-        !self.chat.is_busy()
-            && !self.session_actions.is_busy()
-            && self.loading_session.is_none()
-            && !self.choosing_directory
+        self.is_session_idle()
     }
 
     pub fn choose_session_directory(
@@ -84,8 +81,11 @@ impl ChatView {
             return;
         }
         self.dismiss_permissions();
-        self.receiver = None;
-        self.bridge = None;
+        self.save_draft(cx);
+        if self.disconnected {
+            self.receiver = None;
+            self.bridge = None;
+        }
         self.reset_chat();
         self.cwd = directory;
         self.session_directory_selected = true;

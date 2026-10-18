@@ -43,11 +43,7 @@ fn content(value: &Value) -> String {
         "text" => string(value, "text").to_owned(),
         "image" | "audio" => format!(
             "{} · {}\n\n数据长度：{} 个 Base64 字符，可在完整数据中查看。",
-            if string(value, "type") == "image" {
-                "图片"
-            } else {
-                "音频"
-            },
+            if string(value, "type") == "image" { "图片" } else { "音频" },
             string(value, "mimeType"),
             string(value, "data").len()
         ),
@@ -82,10 +78,7 @@ fn tool_content(value: &Value) -> String {
             code_block("", value["oldText"].as_str().unwrap_or("（新建文件）")),
             code_block("", string(value, "newText"))
         ),
-        "terminal" => format!(
-            "终端引用\n\n{}",
-            code_block("", string(value, "terminalId"))
-        ),
+        "terminal" => format!("终端引用\n\n{}", code_block("", string(value, "terminalId"))),
         _ => json(value),
     }
 }
@@ -129,11 +122,9 @@ impl From<&SessionUpdate> for UpdateDisplay {
                         parts.push(format!("{label}：{field}"));
                     }
                 }
-                for (key, label) in [
-                    ("rawInput", "输入参数"),
-                    ("rawOutput", "输出结果"),
-                    ("locations", "文件位置"),
-                ] {
+                for (key, label) in
+                    [("rawInput", "输入参数"), ("rawOutput", "输出结果"), ("locations", "文件位置")]
+                {
                     if let Some(field) = value.get(key) {
                         parts.push(format!("{label}\n\n{}", json(field)));
                     }
@@ -188,10 +179,9 @@ impl From<&SessionUpdate> for UpdateDisplay {
                     .filter(|text| !text.is_empty())
                     .unwrap_or_else(|| "暂无可用命令".into()),
             ),
-            "current_mode_update" => (
-                "会话模式".into(),
-                code_block("", string(&value, "currentModeId")),
-            ),
+            "current_mode_update" => {
+                ("会话模式".into(), code_block("", string(&value, "currentModeId")))
+            }
             "config_option_update" => ("配置选项".into(), json(&value["configOptions"])),
             "session_info_update" => ("会话信息".into(), json(&value)),
             "usage_update" => (
@@ -212,11 +202,7 @@ impl From<&SessionUpdate> for UpdateDisplay {
             ),
             "notice" => (
                 format!("通知 · {}", string(&value, "title")),
-                format!(
-                    "{}\n\n{}",
-                    string(&value, "severity"),
-                    string(&value, "description")
-                ),
+                format!("{}\n\n{}", string(&value, "severity"), string(&value, "description")),
             ),
             "compaction_update" => {
                 let mut parts = vec![format!(
@@ -234,11 +220,7 @@ impl From<&SessionUpdate> for UpdateDisplay {
             }
             "compaction_summary_chunk" => (
                 "压缩摘要".into(),
-                format!(
-                    "{}\n\n{}",
-                    string(&value, "compactionId"),
-                    content(&value["content"])
-                ),
+                format!("{}\n\n{}", string(&value, "compactionId"), content(&value["content"])),
             ),
             _ => (format!("会话更新 · {kind}"), json(&value)),
         };

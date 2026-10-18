@@ -14,11 +14,7 @@ impl Permission {
         options: Vec<PermissionOption>,
         response: oneshot::Sender<Option<PermissionOptionId>>,
     ) -> Self {
-        Self {
-            title,
-            options,
-            response,
-        }
+        Self { title, options, response }
     }
 
     pub fn title(&self) -> &str {

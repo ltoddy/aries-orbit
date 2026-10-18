@@ -1,29 +1,22 @@
-use std::{collections::HashSet, path::Path};
+use std::collections::HashSet;
+use std::path::Path;
 
 use agent_client_protocol::schema::v1::SessionId;
-use gpui_kit::{
-    component::{
-        Sizable,
-        button::{Button, ButtonVariants},
-    },
-    prelude::*,
-    *,
-};
+use gpui_kit::component::Sizable;
+use gpui_kit::component::button::{Button, ButtonVariants};
+use gpui_kit::prelude::*;
+use gpui_kit::*;
 
-use crate::{
-    acp::{Command, DeletionReport},
-    ui::{ChatView, palette::Palette},
-};
+use crate::acp::{Command, DeletionReport};
+use crate::ui::ChatView;
+use crate::ui::palette::Palette;
 
 impl ChatView {
     pub fn can_manage_sessions(&self) -> bool {
         !self.disconnected
-            && !self.chat.is_busy()
+            && self.is_session_idle()
             && !self.session_list.is_loading()
             && self.session_list.is_supported()
-            && !self.session_actions.is_busy()
-            && self.loading_session.is_none()
-            && !self.choosing_directory
     }
 
     pub fn session_ids(&self, cwd: Option<&Path>) -> Vec<SessionId> {
@@ -61,19 +54,19 @@ impl ChatView {
         if ids.is_empty() {
             return;
         }
-        self.session_actions.prepare_deletion(ids, label);
+        self.session_deletion.prepare_deletion(ids, label);
         cx.notify();
     }
 
     fn confirm_session_deletion(&mut self, cx: &mut Context<Self>) {
         if self.disconnected
             || self.chat.is_busy()
-            || self.session_actions.is_deleting()
+            || self.session_deletion.is_deleting()
             || self.session_list.is_loading()
         {
             return;
         }
-        let Some(ids) = self.session_actions.begin_deletion() else {
+        let Some(ids) = self.session_deletion.begin_deletion() else {
             return;
         };
         if !self
@@ -81,21 +74,23 @@ impl ChatView {
             .as_ref()
             .is_some_and(|bridge| bridge.send(Command::DeleteSessions(ids)).is_ok())
         {
-            self.session_actions
-                .fail_deletion("无法发送删除请求，请重新连接后重试。".into());
+            self.session_deletion.fail_deletion("无法发送删除请求，请重新连接后重试。".into());
         }
         cx.notify();
     }
 
-    pub fn apply_session_deletion(&mut self, result: DeletionReport, cx: &mut Context<Self>) {
+    pub fn apply_session_deletion(
+        &mut self,
+        result: DeletionReport,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let (deleted, failed) = result.into_parts();
         let deleted: HashSet<_> = deleted.into_iter().collect();
-        if self
-            .session_id
-            .as_ref()
-            .is_some_and(|id| deleted.contains(id))
-        {
+        self.drafts.retain(|id, _| !deleted.contains(id));
+        if self.session_id.as_ref().is_some_and(|id| deleted.contains(id)) {
             self.reset_chat();
+            self.input.update(cx, |input, cx| input.set_value("", window, cx));
         }
         self.session_list.remove_sessions(&deleted);
         let notice = if failed.is_empty() {
@@ -119,14 +114,14 @@ impl ChatView {
                 .collect::<Vec<_>>()
                 .join("\n")
         });
-        self.session_actions.finish_deletion(notice, error);
+        self.session_deletion.finish_deletion(notice, error);
         self.session_list.take_refresh_request();
         self.refresh_sessions(cx);
         cx.notify();
     }
 
     pub fn render_session_actions(&self, p: Palette, cx: &mut Context<Self>) -> impl IntoElement {
-        let actions = &self.session_actions;
+        let actions = &self.session_deletion;
         div()
             .flex_shrink_0()
             .when_some(actions.pending_deletion(), |panel, pending| {
@@ -169,7 +164,7 @@ impl ChatView {
                                         .label("取消")
                                         .small()
                                         .on_click(cx.listener(|this, _, _, cx| {
-                                            this.session_actions.cancel_deletion();
+                                            this.session_deletion.cancel_deletion();
                                             if this.session_list.take_refresh_request() {
                                                 this.refresh_sessions(cx);
                                             }
@@ -181,21 +176,11 @@ impl ChatView {
             })
             .when(actions.is_deleting(), |panel| {
                 panel.child(
-                    div()
-                        .p_2()
-                        .text_size(px(12.))
-                        .text_color(p.muted())
-                        .child("正在删除会话…"),
+                    div().p_2().text_size(px(12.)).text_color(p.muted()).child("正在删除会话…"),
                 )
             })
             .when_some(actions.notice().map(str::to_owned), |panel, notice| {
-                panel.child(
-                    div()
-                        .p_2()
-                        .text_size(px(12.))
-                        .text_color(p.muted())
-                        .child(notice),
-                )
+                panel.child(div().p_2().text_size(px(12.)).text_color(p.muted()).child(notice))
             })
             .when_some(actions.error().map(str::to_owned), |panel, error| {
                 panel.child(
