@@ -52,7 +52,7 @@ impl ChatView {
     }
 
     pub fn apply_event(&mut self, event: Event, window: &mut Window, cx: &mut Context<Self>) {
-        let follow = self.scroll.max_offset().y + self.scroll.offset().y < px(48.);
+        let follow = self.timeline.is_scrolled_to_end().unwrap_or(true);
         match event {
             Event::Connected { list_sessions, load_session } => {
                 self.session_list.connected(list_sessions);
@@ -112,9 +112,6 @@ impl ChatView {
                     self.receive_update(*notification, cx);
                 }
             }
-            Event::TerminalOutput { session_id, terminal_id, output } => {
-                self.terminal_outputs.insert((session_id, terminal_id), output);
-            }
             Event::Permission(permission) => {
                 if self.stopping {
                     permission.respond(None);
@@ -153,7 +150,7 @@ impl ChatView {
             }
         }
         if follow {
-            self.scroll.scroll_to_bottom();
+            self.timeline.scroll_to_end();
         }
         cx.notify();
     }

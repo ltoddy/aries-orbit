@@ -1,6 +1,5 @@
 use agent_client_protocol::schema::v1::{ToolCallStatus, ToolKind};
 use gpui_kit::assets::IconName;
-use gpui_kit::component::button::{Button, ButtonVariants};
 use gpui_kit::component::spinner::Spinner;
 use gpui_kit::component::tooltip::Tooltip;
 use gpui_kit::component::{Icon, Sizable};
@@ -10,12 +9,6 @@ use gpui_kit::*;
 use crate::session::tool_call::ToolCallState;
 use crate::ui::ChatView;
 use crate::ui::palette::Palette;
-
-#[derive(Clone, Copy, Debug)]
-pub struct ToolExpansion {
-    pub expanded: bool,
-    pub failure_revision: u64,
-}
 
 fn tool_icon(kind: ToolKind) -> IconName {
     match kind {
@@ -38,15 +31,9 @@ impl ChatView {
         index: usize,
         tool: &ToolCallState,
         p: Palette,
-        cx: &mut Context<Self>,
+        _cx: &mut Context<Self>,
     ) -> AnyElement {
         let failed = tool.call().status == ToolCallStatus::Failed;
-        let failure_revision = tool.failure_revision();
-        let expanded = self
-            .tool_expansion
-            .get(&index)
-            .filter(|state| state.failure_revision == failure_revision)
-            .map_or(failed, |state| state.expanded);
         let (status, status_icon) = if tool.is_interrupted() {
             ("已中断", IconName::CirclePause)
         } else {
@@ -81,86 +68,52 @@ impl ChatView {
                         .build(window, cx)
                     })
                     .child(
-                        Button::new(("toggle-tool", index))
-                            .ghost()
-                            .xsmall()
+                        div()
                             .w_full()
+                            .min_w_0()
                             .h(px(24.))
-                            .px_0()
-                            .cursor_pointer()
+                            .flex()
+                            .items_center()
+                            .justify_start()
+                            .gap_2()
+                            .text_size(px(12.))
                             .text_color(p.muted())
-                            .accessibility_label(format!(
-                                "{}工具详情：{} · {status}",
-                                if expanded { "收起" } else { "展开" },
-                                tool.title()
-                            ))
                             .child(
                                 div()
-                                    .w_full()
-                                    .min_w_0()
+                                    .flex_shrink_0()
                                     .flex()
                                     .items_center()
-                                    .justify_start()
-                                    .gap_2()
-                                    .text_size(px(12.))
-                                    .text_left()
+                                    .gap_1()
+                                    .text_color(color)
                                     .child(
-                                        Icon::new(if expanded {
-                                            IconName::ChevronDown
+                                        if tool.call().status == ToolCallStatus::InProgress
+                                            && !tool.is_interrupted()
+                                        {
+                                            Spinner::new().small().color(color).into_any_element()
                                         } else {
-                                            IconName::ChevronRight
-                                        })
-                                        .size(px(14.))
-                                        .flex_shrink_0(),
+                                            Icon::new(status_icon).size(px(14.)).into_any_element()
+                                        },
                                     )
-                                    .child(
-                                        Icon::new(tool_icon(tool.call().kind))
-                                            .size(px(14.))
-                                            .flex_shrink_0(),
-                                    )
-                                    .child(
-                                        div()
-                                            .min_w_0()
-                                            .truncate()
-                                            .line_clamp(1)
-                                            .child(tool.title().to_owned()),
-                                    )
-                                    .child(
-                                        div()
-                                            .flex_shrink_0()
-                                            .flex()
-                                            .items_center()
-                                            .gap_1()
-                                            .text_color(color)
-                                            .child(
-                                                if tool.call().status == ToolCallStatus::InProgress
-                                                    && !tool.is_interrupted()
-                                                {
-                                                    Spinner::new()
-                                                        .small()
-                                                        .color(color)
-                                                        .into_any_element()
-                                                } else {
-                                                    Icon::new(status_icon)
-                                                        .size(px(14.))
-                                                        .into_any_element()
-                                                },
-                                            )
-                                            .when(failed || tool.is_interrupted(), |status_row| {
-                                                status_row.child(status)
-                                            }),
-                                    ),
+                                    .when(failed || tool.is_interrupted(), |status_row| {
+                                        status_row.child(status)
+                                    }),
                             )
-                            .on_click(cx.listener(move |this, _, _, cx| {
-                                this.tool_expansion.insert(
-                                    index,
-                                    ToolExpansion { expanded: !expanded, failure_revision },
-                                );
-                                cx.notify();
-                            })),
+                            .child(
+                                Icon::new(tool_icon(tool.call().kind))
+                                    .size(px(14.))
+                                    .flex_shrink_0(),
+                            )
+                            .child(
+                                div()
+                                    .flex_1()
+                                    .min_w_0()
+                                    .truncate()
+                                    .line_clamp(1)
+                                    .child(tool.title().to_owned()),
+                            ),
                     ),
             )
-            .when(expanded, |row| row.child(self.render_tool_content(index, tool, p)))
+            .child(self.render_tool_content(index, tool, p))
             .into_any_element()
     }
 }

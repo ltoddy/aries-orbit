@@ -69,7 +69,8 @@ impl ChatView {
                 self.input.update(cx, |input, cx| input.set_value(draft, window, cx));
                 self.rebuild_images();
                 self.rebuild_tool_diffs(cx);
-                self.scroll.scroll_to_bottom();
+                self.timeline.reset_with_uniform_height(self.chat.messages().len(), px(96.));
+                self.timeline.scroll_to_end();
             }
             Err(error) => {
                 self.status = "加载失败".into();

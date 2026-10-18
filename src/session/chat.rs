@@ -44,18 +44,16 @@ impl Message {
         &self.updates
     }
     pub fn attachments(&self) -> impl Iterator<Item = (usize, &ContentBlock)> {
-        self.updates
-            .iter()
-            .enumerate()
-            .filter_map(|(index, notification)| match &notification.update {
+        self.updates.iter().enumerate().filter_map(|(index, notification)| {
+            match &notification.update {
                 SessionUpdate::UserMessageChunk(chunk)
                     if !matches!(chunk.content, ContentBlock::Text(_)) =>
                 {
                     Some((index, &chunk.content))
                 }
                 _ => None,
-            })
-            .chain(self.tool_call.iter().flat_map(ToolCallState::attachments))
+            }
+        })
     }
     pub fn compaction(&self) -> Option<&CompactionUpdate> {
         self.compaction.as_ref()
@@ -335,7 +333,7 @@ impl Chat {
 
 fn streamed_content(update: &SessionUpdate) -> Option<(Role, &'static str, &ContentChunk)> {
     match update {
-        SessionUpdate::AgentMessageChunk(chunk) => Some((Role::Assistant, "Aries", chunk)),
+        SessionUpdate::AgentMessageChunk(chunk) => Some((Role::Assistant, "", chunk)),
         SessionUpdate::AgentThoughtChunk(chunk) => Some((Role::Thought, "思考", chunk)),
         SessionUpdate::UserMessageChunk(chunk) => Some((Role::User, "用户消息", chunk)),
         _ => None,

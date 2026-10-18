@@ -6,7 +6,7 @@ use crate::ui::ChatView;
 use crate::ui::palette::Palette;
 
 impl ChatView {
-    pub fn render_layout(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    pub fn render_layout(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
         let p = Palette::new(cx.theme().mode);
         div()
             .size_full()

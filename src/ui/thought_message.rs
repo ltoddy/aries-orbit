@@ -11,7 +11,7 @@ use crate::ui::palette::Palette;
 
 impl ChatView {
     pub fn render_thought_message(
-        &self,
+        &mut self,
         index: usize,
         message: &Message,
         p: Palette,
@@ -80,20 +80,13 @@ impl ChatView {
             .when(expanded, |body| {
                 body.child(
                     div().w_full().min_w_0().child(
-                        TextView::markdown(
-                            ("markdown", index),
-                            if message.text().is_empty() {
-                                "（空内容）".into()
-                            } else {
-                                message.text().to_owned()
-                            },
-                        )
-                        .selectable(true)
-                        .scrollable(false)
-                        .w_full()
-                        .text_size(px(12.))
-                        .line_height(px(20.))
-                        .text_color(p.muted()),
+                        TextView::new(&self.markdown_state(index, message.text(), cx))
+                            .selectable(true)
+                            .scrollable(false)
+                            .w_full()
+                            .text_size(px(12.))
+                            .line_height(px(20.))
+                            .text_color(p.muted()),
                     ),
                 )
             })

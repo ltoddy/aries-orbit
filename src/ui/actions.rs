@@ -36,7 +36,7 @@ impl ChatView {
         } else {
             self.apply_event(Event::Disconnected("无法发送消息，请新建对话".into()), window, cx);
         }
-        self.scroll.scroll_to_bottom();
+        self.timeline.scroll_to_end();
         cx.notify();
     }
 
@@ -89,10 +89,11 @@ impl ChatView {
         self.command_menu.reset();
         self.expanded_thoughts.clear();
         self.collapsed_streaming_thoughts.clear();
-        self.tool_expansion.clear();
         self.tool_diffs.clear();
+        self.tool_diff_rows.clear();
         self.images.clear();
         self.attachment_images.clear();
+        self.markdown.clear();
         self.session_id = None;
         self.pending_updates.clear();
         self.session_directory_selected = false;
@@ -103,6 +104,6 @@ impl ChatView {
         self.tokens = None;
         self.pending_config = None;
         self.config_error = None;
-        self.scroll.set_offset(point(px(0.), px(0.)));
+        self.timeline.reset(0);
     }
 }

@@ -96,12 +96,13 @@ fn file_name<'a>(uri: &'a str, fallback: &'a str) -> &'a str {
 
 impl ChatView {
     pub fn render_attachment(
-        &self,
+        &mut self,
         message_index: usize,
         attachment_index: usize,
         content: &ContentBlock,
         p: Palette,
     ) -> AnyElement {
+        self.cache_attachment_image(message_index, attachment_index, content);
         let info = AttachmentInfo::from(content);
         let subtitle = info
             .mime_type
@@ -117,7 +118,7 @@ impl ChatView {
         let icon = info.icon;
         let preview = match self.attachment_images.get(&(message_index, attachment_index)) {
             Some(image) => img(image.clone())
-                .size(px(48.))
+                .size(px(40.))
                 .rounded(px(6.))
                 .object_fit(ObjectFit::Contain)
                 .with_fallback(move || Icon::new(icon).size(px(24.)).into_any_element())
@@ -127,17 +128,18 @@ impl ChatView {
         div()
             .id(SharedString::from(format!("attachment:{message_index}:{attachment_index}")))
             .aria_label(format!("{}附件：{}", info.kind, info.name))
-            .w(px(280.))
+            .w(px(240.))
             .max_w_full()
             .min_w_0()
-            .p_2()
-            .rounded(px(10.))
+            .px_2()
+            .py_1()
+            .rounded(px(8.))
             .border_1()
             .border_color(p.border())
             .bg(p.input())
             .flex()
             .items_center()
-            .gap_3()
+            .gap_2()
             .tooltip(move |window, cx| {
                 let details = details.clone();
                 Tooltip::element(move |_, _| {
@@ -147,7 +149,7 @@ impl ChatView {
             })
             .child(
                 div()
-                    .size(px(48.))
+                    .size(px(40.))
                     .flex_shrink_0()
                     .flex()
                     .items_center()

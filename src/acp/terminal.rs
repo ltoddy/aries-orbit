@@ -8,12 +8,9 @@ use agent_client_protocol::Error;
 use agent_client_protocol::schema::v1::{
     CreateTerminalRequest, SessionId, TerminalExitStatus, TerminalId, TerminalOutputResponse,
 };
-use async_channel::Sender;
 use tokio::io::AsyncReadExt;
 use tokio::process::{Child, Command};
 use tokio::sync::{mpsc, watch};
-
-use crate::acp::Event;
 
 type Key = (SessionId, TerminalId);
 
@@ -28,16 +25,14 @@ pub struct Terminals {
     entries: Mutex<HashMap<Key, Terminal>>,
     next_id: AtomicU64,
     prefix: u128,
-    events: Sender<Event>,
 }
 
 impl Terminals {
-    pub fn new(events: Sender<Event>) -> Self {
+    pub fn new() -> Self {
         Self {
             entries: Mutex::new(HashMap::new()),
             next_id: AtomicU64::new(1),
             prefix: SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos(),
-            events,
         }
     }
 
@@ -73,10 +68,9 @@ impl Terminals {
             .lock()
             .unwrap_or_else(|error| error.into_inner())
             .insert(key.clone(), Terminal { output: receiver, kill });
-        let events = self.events.clone();
         let limit =
             request.output_byte_limit.unwrap_or(1024 * 1024).min(usize::MAX as u64) as usize;
-        tokio::spawn(run(process, key, output, kills, events, limit));
+        tokio::spawn(run(process, output, kills, limit));
         Ok(id)
     }
 
@@ -209,20 +203,17 @@ fn append(
 
 async fn run(
     mut process: Process,
-    key: Key,
     output: watch::Sender<TerminalOutputResponse>,
     mut kills: mpsc::UnboundedReceiver<()>,
-    events: Sender<Event>,
     limit: usize,
 ) {
     let mut stdout = process.child.stdout.take().expect("stdout is piped");
     let mut stderr = process.child.stderr.take().expect("stderr is piped");
     let (mut out_bytes, mut err_bytes) = ([0; 4096], [0; 4096]);
     let (mut out_pending, mut err_pending) = (Vec::new(), Vec::new());
-    let (mut out_open, mut err_open, mut dirty, mut killed) = (true, true, true, false);
+    let (mut out_open, mut err_open, mut killed) = (true, true, false);
     let mut status = None;
     let mut exit_deadline = None;
-    let mut tick = tokio::time::interval(Duration::from_millis(50));
     loop {
         if status.is_some()
             && (!out_open && !err_open
@@ -251,30 +242,17 @@ async fn run(
                 let count = result.unwrap_or_default();
                 out_open = count != 0;
                 append(&output, &mut out_pending, &out_bytes[..count], !out_open, limit);
-                dirty = true;
             }
             result = stderr.read(&mut err_bytes), if err_open => {
                 let count = result.unwrap_or_default();
                 err_open = count != 0;
                 append(&output, &mut err_pending, &err_bytes[..count], !err_open, limit);
-                dirty = true;
-            }
-            _ = tick.tick() => {
-                if dirty {
-                    let state = output.borrow().clone();
-                    let _ = events.send(Event::TerminalOutput { session_id: key.0.clone(), terminal_id: key.1.clone(), output: state }).await;
-                    dirty = false;
-                }
             }
         }
     }
     append(&output, &mut out_pending, &[], true, limit);
     append(&output, &mut err_pending, &[], true, limit);
     output.send_modify(|state| state.exit_status = status);
-    let state = output.borrow().clone();
-    let _ = events
-        .send(Event::TerminalOutput { session_id: key.0, terminal_id: key.1, output: state })
-        .await;
 }
 
 pub type SharedTerminals = Arc<Terminals>;

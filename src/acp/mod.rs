@@ -24,7 +24,7 @@ use agent_client_protocol::Error;
 use agent_client_protocol::schema::v1::{
     LoadSessionRequest, LoadSessionResponse, NewSessionResponse, SessionConfigId,
     SessionConfigOption, SessionId, SessionInfo, SessionNotification,
-    SetSessionConfigOptionRequest, StopReason, TerminalId, TerminalOutputResponse,
+    SetSessionConfigOptionRequest, StopReason,
 };
 
 pub use self::bridge::Bridge;
@@ -68,11 +68,6 @@ pub enum Event {
     },
     Ready(Box<NewSessionResponse>),
     Update(Box<SessionNotification>),
-    TerminalOutput {
-        session_id: SessionId,
-        terminal_id: TerminalId,
-        output: TerminalOutputResponse,
-    },
     Permission(Permission),
     Finished(Result<StopReason, Error>),
     Disconnected(String),

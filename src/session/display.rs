@@ -85,7 +85,7 @@ impl From<&SessionUpdate> for UpdateDisplay {
                 match kind {
                     "user_message_chunk" => "用户内容",
                     "agent_thought_chunk" => "思考内容",
-                    _ => "Aries 内容",
+                    _ => "回复内容",
                 }
                 .to_owned(),
                 content(&value["content"]),

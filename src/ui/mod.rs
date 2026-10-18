@@ -25,11 +25,10 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use agent_client_protocol::AcpAgentConfig;
-use agent_client_protocol::schema::v1::{
-    SessionConfigId, SessionId, SessionNotification, TerminalId, TerminalOutputResponse,
-};
+use agent_client_protocol::schema::v1::{SessionConfigId, SessionId, SessionNotification};
 use gpui_kit::component::diff::DiffState;
 use gpui_kit::component::input::{InputEvent, TextareaState};
+use gpui_kit::component::text::TextViewState;
 use gpui_kit::prelude::*;
 use gpui_kit::*;
 
@@ -41,7 +40,6 @@ use crate::session::list::SessionList;
 use crate::session::load::SessionLoad;
 use crate::ui::commands::SlashMenu;
 use crate::ui::new_chat::NewChatAction;
-use crate::ui::tool_message::ToolExpansion;
 
 pub struct ChatView {
     cwd: PathBuf,
@@ -73,14 +71,14 @@ pub struct ChatView {
     config_error: Option<String>,
     permissions: VecDeque<Permission>,
     preference_error: Option<String>,
-    scroll: ScrollHandle,
+    timeline: ListState,
     expanded_thoughts: HashSet<usize>,
     collapsed_streaming_thoughts: HashSet<usize>,
-    tool_expansion: HashMap<usize, ToolExpansion>,
     tool_diffs: HashMap<(usize, usize), Entity<DiffState>>,
-    terminal_outputs: HashMap<(SessionId, TerminalId), TerminalOutputResponse>,
+    tool_diff_rows: HashMap<(usize, usize), usize>,
     images: HashMap<usize, Vec<Arc<Image>>>,
     attachment_images: HashMap<(usize, usize), Arc<Image>>,
+    markdown: HashMap<usize, Entity<TextViewState>>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -181,14 +179,14 @@ impl ChatView {
             config_error: None,
             permissions: VecDeque::new(),
             preference_error: None,
-            scroll: ScrollHandle::new(),
+            timeline: ListState::new(0, ListAlignment::Bottom, px(600.)),
             expanded_thoughts: HashSet::new(),
             collapsed_streaming_thoughts: HashSet::new(),
-            tool_expansion: HashMap::new(),
             tool_diffs: HashMap::new(),
-            terminal_outputs: HashMap::new(),
+            tool_diff_rows: HashMap::new(),
             images: HashMap::new(),
             attachment_images: HashMap::new(),
+            markdown: HashMap::new(),
             _subscriptions: vec![changes, quit, system_theme],
         }
     }

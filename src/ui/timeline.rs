@@ -1,15 +1,15 @@
 use gpui_kit::assets::IconName;
 use gpui_kit::component::Icon;
-use gpui_kit::component::text::TextView;
+use gpui_kit::component::text::{TextView, TextViewState};
 use gpui_kit::prelude::*;
 use gpui_kit::*;
 
-use crate::session::chat::{Message, Role};
+use crate::session::chat::Role;
 use crate::ui::ChatView;
 use crate::ui::palette::Palette;
 
 impl ChatView {
-    pub fn render_timeline(&self, p: Palette, cx: &mut Context<Self>) -> AnyElement {
+    pub fn render_timeline(&mut self, p: Palette, cx: &mut Context<Self>) -> AnyElement {
         if self.chat.messages().is_empty()
             && self.chat.error().is_none()
             && self.loading_session.is_none()
@@ -58,60 +58,86 @@ impl ChatView {
                 )
                 .into_any_element();
         }
+        self.sync_timeline_items();
+        let messages = self.chat.messages().len();
+        let error = self.chat.error().map(str::to_owned);
+        let count = messages + usize::from(error.is_some());
+        let view = cx.weak_entity();
+        let timeline = self.timeline.clone();
         div()
             .id("timeline")
             .flex_1()
             .min_h_0()
-            .overflow_y_scroll()
-            .track_scroll(&self.scroll)
             .px_6()
             .py_8()
             .child(
-                div()
-                    .max_w(px(768.))
-                    .w_full()
-                    .mx_auto()
-                    .flex()
-                    .flex_col()
-                    .gap_5()
-                    .children(
-                        self.chat
-                            .messages()
-                            .iter()
-                            .enumerate()
-                            .map(|(index, message)| self.timeline_item(index, message, p, cx)),
-                    )
-                    .when_some(self.chat.error().map(str::to_owned), |list, error| {
-                        list.child(
+                div().max_w(px(768.)).w_full().h_full().mx_auto().child(
+                    list(timeline, move |index, _window, cx| {
+                        let view = view.clone();
+                        view.update(cx, |this, cx| {
                             div()
-                                .id("chat-error")
-                                .rounded(px(12.))
-                                .p_3()
-                                .border_1()
-                                .border_color(p.border())
-                                .text_color(p.danger())
-                                .child(error),
-                        )
-                    }),
+                                .w_full()
+                                .pb_5()
+                                .child(if index < messages {
+                                    this.timeline_item(index, p, cx)
+                                } else {
+                                    div()
+                                        .id("chat-error")
+                                        .rounded(px(12.))
+                                        .p_3()
+                                        .border_1()
+                                        .border_color(p.border())
+                                        .text_color(p.danger())
+                                        .child(error.clone().unwrap_or_default())
+                                        .into_any_element()
+                                })
+                                .into_any_element()
+                        })
+                        .unwrap_or_else(|_| div().into_any_element())
+                    })
+                    .w_full()
+                    .h_full(),
+                ),
             )
+            .when(count == 0, |timeline| timeline)
             .into_any_element()
     }
 
-    fn timeline_item(
-        &self,
+    fn sync_timeline_items(&self) {
+        let count = self.chat.messages().len() + usize::from(self.chat.error().is_some());
+        let current = self.timeline.item_count();
+        if current != count {
+            self.timeline.reset_with_uniform_height(count, px(96.));
+        }
+    }
+
+    pub(crate) fn markdown_state(
+        &mut self,
         index: usize,
-        message: &Message,
-        p: Palette,
+        text: &str,
         cx: &mut Context<Self>,
-    ) -> AnyElement {
+    ) -> Entity<TextViewState> {
+        let value = if text.is_empty() { "（空内容）" } else { text };
+        let state = self
+            .markdown
+            .entry(index)
+            .or_insert_with(|| cx.new(|cx| TextViewState::markdown(value, cx)))
+            .clone();
+        state.update(cx, |state, cx| state.set_text(value, cx));
+        state
+    }
+
+    fn timeline_item(&mut self, index: usize, p: Palette, cx: &mut Context<Self>) -> AnyElement {
+        self.cache_visible_images(index);
+        let message = self.chat.messages()[index].clone();
         if let Some(tool) = message.tool_call() {
             return self.render_tool_message(index, tool, p, cx);
         }
         if message.role() == Role::User {
-            return self.render_user_message(index, message, p);
+            return self.render_user_message(index, &message, p);
         }
         if message.role() == Role::Thought {
-            return self.render_thought_message(index, message, p, cx);
+            return self.render_thought_message(index, &message, p, cx);
         }
         let card = message.role() == Role::Event;
         let body = div()
@@ -119,11 +145,16 @@ impl ChatView {
             .min_w_0()
             .flex()
             .flex_col()
-            .gap_2()
+            .gap_1()
             .when(card, |body| {
-                body.p_3().rounded(px(12.)).bg(p.input()).border_1().border_color(p.border())
+                body.px_2()
+                    .py_1()
+                    .rounded(px(10.))
+                    .bg(p.input())
+                    .border_1()
+                    .border_color(p.border())
             })
-            .when(card || !message.updates().is_empty(), |body| {
+            .when(card || !message.title().is_empty(), |body| {
                 body.child(
                     div()
                         .flex()
@@ -138,23 +169,16 @@ impl ChatView {
                 )
             })
             .child(
-                TextView::markdown(
-                    ("markdown", index),
-                    if message.text().is_empty() {
-                        "（空内容）".into()
-                    } else {
-                        message.text().to_owned()
-                    },
-                )
-                .selectable(true)
-                .scrollable(false)
-                .w_full()
-                .text_size(px(14.))
-                .line_height(px(25.))
-                .into_any_element(),
+                TextView::new(&self.markdown_state(index, message.text(), cx))
+                    .selectable(true)
+                    .scrollable(false)
+                    .w_full()
+                    .text_size(px(14.))
+                    .line_height(px(25.))
+                    .into_any_element(),
             )
             .when_some(self.images.get(&index), |body, images| {
-                body.child(div().id(("images", index)).w_full().flex().flex_col().gap_2().children(
+                body.child(div().id(("images", index)).w_full().flex().flex_col().gap_1().children(
                     images.iter().map(|image| {
                         img(image.clone())
                             .w_full()

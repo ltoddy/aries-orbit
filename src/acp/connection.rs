@@ -154,7 +154,7 @@ pub async fn connect(
     events: Sender<Event>,
 ) -> Result<(), Error> {
     let (cancel, cancel_rx) = watch::channel(false);
-    let terminals = Arc::new(Terminals::new(events.clone()));
+    let terminals = Arc::new(Terminals::new());
     let create = terminals.clone();
     let output = terminals.clone();
     let release = terminals.clone();
