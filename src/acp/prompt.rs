@@ -19,10 +19,11 @@ pub async fn request(
     let session_id = match target {
         PromptTarget::Existing(id) => id,
         PromptTarget::New(cwd) => {
-            let Some(id) = new_session::request(connection, cwd).await? else {
+            let Some(response) = new_session::request(connection, cwd).await? else {
                 return Ok(ControlFlow::Break(()));
             };
-            connection.emit(Event::Ready(id.clone())).await;
+            let id = response.session_id.clone();
+            connection.emit(Event::Ready(Box::new(response))).await;
             id
         }
     };

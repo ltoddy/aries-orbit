@@ -81,14 +81,6 @@ impl ChatView {
                             .enumerate()
                             .map(|(index, message)| self.timeline_item(index, message, p, cx)),
                     )
-                    .when(self.chat.is_busy() || self.loading_session.is_some(), |list| {
-                        list.child(
-                            div()
-                                .text_size(px(12.))
-                                .text_color(p.muted())
-                                .child(self.status.clone()),
-                        )
-                    })
                     .when_some(self.chat.error().map(str::to_owned), |list, error| {
                         list.child(
                             div()

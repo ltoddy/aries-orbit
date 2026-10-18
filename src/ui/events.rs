@@ -72,13 +72,19 @@ impl ChatView {
             Event::SessionLoaded { session_id, result } => {
                 self.finish_session_load(session_id, result, window, cx);
             }
-            Event::Ready(id) => {
+            Event::SessionConfigSet { session_id, config_id, result } => {
+                self.finish_session_config(session_id, config_id, result, cx);
+            }
+            Event::Ready(response) => {
                 let action = self.creating_session.take();
-                self.session_id = Some(id);
+                self.session_id = Some(response.session_id);
                 self.chat.end_segment();
                 self.status = if self.chat.is_busy() { "思考中…" } else { "就绪" }.into();
                 for notification in std::mem::take(&mut self.pending_updates) {
                     self.receive_update(notification, cx);
+                }
+                if let Some(options) = response.config_options {
+                    self.chat.set_config_options(options);
                 }
                 if action.is_some() {
                     self.refresh_sessions(cx);
@@ -137,6 +143,9 @@ impl ChatView {
                 self.loading_session = None;
                 self.creating_session = None;
                 self.pending_updates.clear();
+                if self.pending_config.take().is_some() {
+                    self.config_error = Some("连接已断开，无法确认配置是否更新。".into());
+                }
                 self.session_list.disconnect(error.clone());
                 self.session_deletion.disconnect();
                 self.status = "连接已断开".into();

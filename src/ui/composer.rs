@@ -71,26 +71,18 @@ impl ChatView {
                             this.command_menu_action(CommandMenuAction::Dismiss, window, cx)
                         }))
                         .children(self.render_commands(p, cx))
-                        .child(
-                            div()
-                                .flex()
-                                .items_center()
-                                .justify_between()
-                                .gap_3()
-                                .px_2()
-                                .text_size(px(12.))
-                                .text_color(p.muted())
-                                .child(
-                                    div()
-                                        .id("status")
-                                        .aria_value(self.status.clone())
-                                        .truncate()
-                                        .child(self.status.clone()),
-                                )
-                                .when_some(self.tokens, |row, tokens| {
-                                    row.child(format!("{tokens} tokens"))
-                                }),
-                        )
+                        .when_some(self.tokens, |composer, tokens| {
+                            composer.child(
+                                div()
+                                    .id("usage")
+                                    .flex()
+                                    .justify_end()
+                                    .px_2()
+                                    .text_size(px(12.))
+                                    .text_color(p.muted())
+                                    .child(format!("{tokens} tokens")),
+                            )
+                        })
                         .child(
                             div()
                                 .flex()
@@ -145,10 +137,22 @@ impl ChatView {
                 )
                 .child(
                     div()
-                        .px_2()
-                        .text_size(px(11.))
-                        .text_color(p.muted())
-                        .child("Enter 发送，Shift + Enter 换行"),
+                        .flex()
+                        .items_start()
+                        .gap_2()
+                        .child(div().flex_1().min_w_0().when(
+                            !self.chat.config_options().is_empty() || self.config_error.is_some(),
+                            |footer| footer.child(self.render_session_config(p, cx)),
+                        ))
+                        .child(
+                            div()
+                                .flex_shrink_0()
+                                .px_2()
+                                .py_1()
+                                .text_size(px(11.))
+                                .text_color(p.muted())
+                                .child("Enter 发送，Shift + Enter 换行"),
+                        ),
                 ),
         )
     }

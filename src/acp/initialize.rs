@@ -2,8 +2,9 @@ use std::time::Duration;
 
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::schema::v1::{
-    AgentCapabilities, ClientCapabilities, ClientSessionCapabilities, CompactionCapabilities,
-    Implementation, InitializeRequest, NoticeCapabilities,
+    AgentCapabilities, BooleanConfigOptionCapabilities, ClientCapabilities,
+    ClientSessionCapabilities, CompactionCapabilities, Implementation, InitializeRequest,
+    NoticeCapabilities, SessionConfigOptionsCapabilities,
 };
 use agent_client_protocol::{Agent, ConnectionTo, Error};
 
@@ -16,6 +17,10 @@ pub async fn request(connection: &ConnectionTo<Agent>) -> Result<AgentCapabiliti
                     .client_capabilities(
                         ClientCapabilities::new().terminal(true).session(
                             ClientSessionCapabilities::new()
+                                .config_options(
+                                    SessionConfigOptionsCapabilities::new()
+                                        .boolean(BooleanConfigOptionCapabilities::new()),
+                                )
                                 .notices(NoticeCapabilities::new())
                                 .compaction(CompactionCapabilities::new()),
                         ),

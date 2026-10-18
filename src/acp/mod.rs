@@ -13,6 +13,7 @@ mod prompt;
 mod release_terminal;
 mod request_permission;
 mod session_update;
+mod set_session_config_option;
 mod terminal;
 mod terminal_output;
 mod wait_for_terminal_exit;
@@ -21,8 +22,9 @@ use std::path::PathBuf;
 
 use agent_client_protocol::Error;
 use agent_client_protocol::schema::v1::{
-    LoadSessionRequest, SessionId, SessionInfo, SessionNotification, StopReason, TerminalId,
-    TerminalOutputResponse,
+    LoadSessionRequest, LoadSessionResponse, NewSessionResponse, SessionConfigId,
+    SessionConfigOption, SessionId, SessionInfo, SessionNotification,
+    SetSessionConfigOptionRequest, StopReason, TerminalId, TerminalOutputResponse,
 };
 
 pub use self::bridge::Bridge;
@@ -36,6 +38,7 @@ pub enum Command {
     ListSessions,
     DeleteSessions(Vec<SessionId>),
     LoadSession(Box<LoadSessionRequest>),
+    SetSessionConfigOption(Box<SetSessionConfigOptionRequest>),
     Prompt { target: PromptTarget, text: String },
     Cancel,
 }
@@ -56,9 +59,14 @@ pub enum Event {
     SessionsDeleted(DeletionReport),
     SessionLoaded {
         session_id: SessionId,
-        result: Result<(), Error>,
+        result: Result<LoadSessionResponse, Error>,
     },
-    Ready(SessionId),
+    SessionConfigSet {
+        session_id: SessionId,
+        config_id: SessionConfigId,
+        result: Result<Vec<SessionConfigOption>, Error>,
+    },
+    Ready(Box<NewSessionResponse>),
     Update(Box<SessionNotification>),
     TerminalOutput {
         session_id: SessionId,

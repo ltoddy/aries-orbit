@@ -46,6 +46,7 @@ impl ChatView {
             && self.loading_session.is_none()
             && self.creating_session.is_none()
             && !self.choosing_directory
+            && self.pending_config.is_none()
     }
 
     pub fn can_send(&self, cx: &App) -> bool {
@@ -100,6 +101,8 @@ impl ChatView {
         self.stopping = false;
         self.status = "就绪".into();
         self.tokens = None;
+        self.pending_config = None;
+        self.config_error = None;
         self.scroll.set_offset(point(px(0.), px(0.)));
     }
 }

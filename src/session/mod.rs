@@ -1,4 +1,5 @@
 pub mod chat;
+pub mod config;
 pub mod deletion;
 pub mod display;
 pub mod list;

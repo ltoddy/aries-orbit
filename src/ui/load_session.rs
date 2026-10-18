@@ -1,5 +1,7 @@
 use agent_client_protocol::Error;
-use agent_client_protocol::schema::v1::{LoadSessionRequest, SessionId, SessionInfo};
+use agent_client_protocol::schema::v1::{
+    LoadSessionRequest, LoadSessionResponse, SessionId, SessionInfo,
+};
 use gpui_kit::*;
 
 use crate::acp::Command;
@@ -39,7 +41,7 @@ impl ChatView {
     pub fn finish_session_load(
         &mut self,
         id: SessionId,
-        result: Result<(), Error>,
+        result: Result<LoadSessionResponse, Error>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
@@ -51,9 +53,12 @@ impl ChatView {
         };
         self.dismiss_permissions();
         match result {
-            Ok(()) => {
+            Ok(response) => {
                 let (session, mut chat, tokens) = loading.into_parts();
                 chat.finish(None);
+                if let Some(options) = response.config_options {
+                    chat.set_config_options(options);
+                }
                 self.save_draft(cx);
                 let draft = self.drafts.remove(&session.session_id).unwrap_or_default();
                 self.reset_chat();

@@ -11,7 +11,7 @@ use crate::acp::terminal::Terminals;
 use crate::acp::{
     Command, DeletionReport, Event, create_terminal, delete_sessions, initialize, kill_terminal,
     list_sessions, load_session, new_session, prompt, release_terminal, request_permission,
-    session_update, terminal_output, wait_for_terminal_exit,
+    session_update, set_session_config_option, terminal_output, wait_for_terminal_exit,
 };
 
 pub struct AgentConnection {
@@ -79,6 +79,14 @@ impl AgentConnection {
                     })
                     .await;
             }
+            Command::SetSessionConfigOption(request) => {
+                self.emit(Event::SessionConfigSet {
+                    session_id: request.session_id,
+                    config_id: request.config_id,
+                    result: Err(Error::internal_error().data("请等待当前操作结束后再修改配置")),
+                })
+                .await;
+            }
             Command::NewSession(_) | Command::Prompt { .. } | Command::Cancel => {}
         }
     }
@@ -98,10 +106,10 @@ impl AgentConnection {
             match command {
                 Command::NewSession(cwd) => {
                     self.set_cancelled(false);
-                    let Some(id) = new_session::request(self, cwd).await? else {
+                    let Some(response) = new_session::request(self, cwd).await? else {
                         break;
                     };
-                    self.emit(Event::Ready(id)).await;
+                    self.emit(Event::Ready(Box::new(response))).await;
                 }
                 Command::ListSessions => self.request_sessions().await,
                 Command::DeleteSessions(ids) => {
@@ -122,6 +130,12 @@ impl AgentConnection {
                     if prompt::request(self, target, text).await? == ControlFlow::Break(()) {
                         break;
                     }
+                }
+                Command::SetSessionConfigOption(request) => {
+                    let session_id = request.session_id.clone();
+                    let config_id = request.config_id.clone();
+                    let result = set_session_config_option::request(&self.client, *request).await;
+                    self.emit(Event::SessionConfigSet { session_id, config_id, result }).await;
                 }
                 Command::Cancel => {}
             }

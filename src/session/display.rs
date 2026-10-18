@@ -114,7 +114,6 @@ impl From<&SessionUpdate> for UpdateDisplay {
             "current_mode_update" => {
                 ("会话模式".into(), code_block("", string(&value, "currentModeId")))
             }
-            "config_option_update" => ("配置选项".into(), json(&value["configOptions"])),
             "notice" => (
                 format!("通知 · {}", string(&value, "title")),
                 format!("{}\n\n{}", string(&value, "severity"), string(&value, "description")),

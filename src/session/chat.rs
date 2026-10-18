@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use agent_client_protocol::schema::MaybeUndefined;
 use agent_client_protocol::schema::v1::{
-    AvailableCommand, CompactionStatus, CompactionUpdate, ContentBlock, ContentChunk, SessionId,
-    SessionNotification, SessionUpdate, ToolCall, ToolCallId,
+    AvailableCommand, CompactionStatus, CompactionUpdate, ContentBlock, ContentChunk,
+    SessionConfigOption, SessionId, SessionNotification, SessionUpdate, ToolCall, ToolCallId,
 };
 
 use crate::session::display::UpdateDisplay;
@@ -69,6 +69,7 @@ pub struct Chat {
     error: Option<String>,
     session_title: Option<String>,
     available_commands: Vec<AvailableCommand>,
+    config_options: Vec<SessionConfigOption>,
     stream: Option<usize>,
     tools: HashMap<(SessionId, ToolCallId), usize>,
 }
@@ -91,6 +92,14 @@ impl Chat {
         &self.available_commands
     }
 
+    pub fn config_options(&self) -> &[SessionConfigOption] {
+        &self.config_options
+    }
+
+    pub fn set_config_options(&mut self, options: Vec<SessionConfigOption>) {
+        self.config_options = options;
+    }
+
     pub fn begin_turn(&mut self, text: &str) -> Option<String> {
         let text = text.trim();
         if self.busy || text.is_empty() {
@@ -111,6 +120,10 @@ impl Chat {
     }
 
     pub fn receive(&mut self, notification: SessionNotification) -> Option<usize> {
+        if let SessionUpdate::ConfigOptionUpdate(update) = notification.update {
+            self.set_config_options(update.config_options);
+            return None;
+        }
         if matches!(&notification.update, SessionUpdate::UsageUpdate(_)) {
             return None;
         }

@@ -23,6 +23,16 @@ impl ChatView {
                     .h_full()
                     .flex()
                     .flex_col()
+                    .child(
+                        div()
+                            .h(px(56.))
+                            .flex_shrink_0()
+                            .px_4()
+                            .flex()
+                            .items_center()
+                            .justify_end()
+                            .child(self.render_theme_button(p, cx)),
+                    )
                     .child(self.render_timeline(p, cx))
                     .child(self.composer(p, cx)),
             )

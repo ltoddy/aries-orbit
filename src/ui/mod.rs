@@ -9,8 +9,10 @@ mod media;
 mod new_chat;
 mod palette;
 mod session_actions;
+mod session_config;
 mod session_list;
 mod sidebar;
+mod theme;
 mod thought_message;
 mod timeline;
 mod tool_content;
@@ -24,7 +26,7 @@ use std::sync::Arc;
 
 use agent_client_protocol::AcpAgentConfig;
 use agent_client_protocol::schema::v1::{
-    SessionId, SessionNotification, TerminalId, TerminalOutputResponse,
+    SessionConfigId, SessionId, SessionNotification, TerminalId, TerminalOutputResponse,
 };
 use gpui_kit::component::diff::DiffState;
 use gpui_kit::component::input::{InputEvent, TextareaState};
@@ -67,6 +69,8 @@ pub struct ChatView {
     stopping: bool,
     status: String,
     tokens: Option<u64>,
+    pending_config: Option<SessionConfigId>,
+    config_error: Option<String>,
     permissions: VecDeque<Permission>,
     preference_error: Option<String>,
     scroll: ScrollHandle,
@@ -173,6 +177,8 @@ impl ChatView {
             stopping: false,
             status: "就绪".into(),
             tokens: None,
+            pending_config: None,
+            config_error: None,
             permissions: VecDeque::new(),
             preference_error: None,
             scroll: ScrollHandle::new(),
@@ -185,19 +191,6 @@ impl ChatView {
             attachment_images: HashMap::new(),
             _subscriptions: vec![changes, quit, system_theme],
         }
-    }
-
-    fn set_appearance(&mut self, appearance: Appearance, cx: &mut Context<Self>) {
-        self.appearance = appearance;
-        palette::apply(appearance, cx);
-        self.preference_error = match &self.preferences_path {
-            Some(path) => Preferences::new(appearance)
-                .save(path)
-                .err()
-                .map(|error| format!("主题已切换，但无法保存偏好：{error}")),
-            None => Some("主题已切换；未找到可保存偏好的配置目录".into()),
-        };
-        cx.notify();
     }
 }
 
