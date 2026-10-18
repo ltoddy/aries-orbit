@@ -161,10 +161,11 @@ impl ChatView {
                 _ => {}
             }
         }
+        if matches!(&notification.update, SessionUpdate::AvailableCommandsUpdate(_)) {
+            self.command_menu.reset();
+        }
         if let Some(index) = self.chat.receive(notification) {
             self.cache_message_images(index);
-        } else {
-            self.command_menu.reset();
         }
     }
 

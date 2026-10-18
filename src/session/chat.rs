@@ -1,12 +1,10 @@
-use std::sync::{Arc, OnceLock};
-
 use agent_client_protocol::schema::MaybeUndefined;
 use agent_client_protocol::schema::v1::{
     AvailableCommand, CompactionStatus, CompactionUpdate, ContentBlock, ContentChunk,
     SessionNotification, SessionUpdate,
 };
 
-use crate::session::display::{UpdateDisplay, code_block};
+use crate::session::display::UpdateDisplay;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Role {
@@ -23,23 +21,6 @@ pub struct Message {
     text: String,
     updates: Vec<SessionNotification>,
     compaction: Option<CompactionUpdate>,
-    details: OnceLock<UpdateDetails>,
-}
-
-#[derive(Clone, Debug)]
-pub struct UpdateDetails {
-    raw: Arc<str>,
-    markdown: Arc<str>,
-}
-
-impl UpdateDetails {
-    pub fn raw(&self) -> Arc<str> {
-        self.raw.clone()
-    }
-
-    pub fn markdown(&self) -> Arc<str> {
-        self.markdown.clone()
-    }
 }
 
 impl Message {
@@ -55,17 +36,20 @@ impl Message {
     pub fn updates(&self) -> &[SessionNotification] {
         &self.updates
     }
+    pub fn attachments(&self) -> impl Iterator<Item = (usize, &ContentBlock)> {
+        self.updates.iter().enumerate().filter_map(|(index, notification)| {
+            match &notification.update {
+                SessionUpdate::UserMessageChunk(chunk)
+                    if !matches!(chunk.content, ContentBlock::Text(_)) =>
+                {
+                    Some((index, &chunk.content))
+                }
+                _ => None,
+            }
+        })
+    }
     pub fn compaction(&self) -> Option<&CompactionUpdate> {
         self.compaction.as_ref()
-    }
-
-    pub fn details(&self) -> &UpdateDetails {
-        self.details.get_or_init(|| {
-            let raw = serde_json::to_string_pretty(&self.updates).unwrap_or_else(|error| {
-                format!("无法序列化会话更新：{error}\n\n{:#?}", self.updates)
-            });
-            UpdateDetails { markdown: code_block("json", &raw).into(), raw: raw.into() }
-        })
     }
 }
 
@@ -106,7 +90,6 @@ impl Chat {
             text: text.into(),
             updates: Vec::new(),
             compaction: None,
-            details: OnceLock::new(),
         });
         self.busy = true;
         self.error = None;
@@ -120,6 +103,7 @@ impl Chat {
         }
         if let SessionUpdate::SessionInfoUpdate(update) = &notification.update {
             update.title.clone().update_to(&mut self.session_title);
+            return None;
         }
         if matches!(
             &notification.update,
@@ -130,8 +114,12 @@ impl Chat {
         }
         let chunk = streamed_content(&notification.update);
         if let Some((role, title, chunk)) = chunk
-            && let ContentBlock::Text(content) = &chunk.content
+            && (role == Role::User || matches!(chunk.content, ContentBlock::Text(_)))
         {
+            let text = match &chunk.content {
+                ContentBlock::Text(content) => content.text.as_str(),
+                _ => "",
+            };
             if let Some(index) = self.stream
                 && index + 1 == self.messages.len()
                 && self.messages[index].role == role
@@ -141,8 +129,7 @@ impl Chat {
                             .is_some_and(|(_, _, previous)| previous.message_id == chunk.message_id)
                 })
             {
-                self.messages[index].text.push_str(&content.text);
-                self.messages[index].details.take();
+                self.messages[index].text.push_str(text);
                 self.messages[index].updates.push(notification);
                 return Some(index);
             }
@@ -150,10 +137,9 @@ impl Chat {
             self.messages.push(Message {
                 role,
                 title: title.into(),
-                text: content.text.clone(),
+                text: text.into(),
                 updates: vec![notification],
                 compaction: None,
-                details: OnceLock::new(),
             });
         } else {
             self.end_segment();
@@ -164,7 +150,6 @@ impl Chat {
                 text,
                 updates: vec![notification],
                 compaction: None,
-                details: OnceLock::new(),
             });
         }
         Some(self.messages.len() - 1)
@@ -196,12 +181,10 @@ impl Chat {
                         id.clone(),
                         CompactionStatus::InProgress,
                     )),
-                    details: OnceLock::new(),
                 });
                 self.messages.len() - 1
             });
         let message = &mut self.messages[index];
-        message.details.take();
         let state = message.compaction.as_mut().expect("compaction entry has state");
         match &notification.update {
             SessionUpdate::CompactionUpdate(patch) => {
@@ -256,7 +239,7 @@ impl Chat {
         }
         self.messages
             .iter()
-            .find(|message| message.role == Role::User)
+            .find(|message| message.role == Role::User && !message.text.trim().is_empty())
             .map(|message| {
                 let line = message.text.lines().next().unwrap_or_default();
                 let mut title: String = line.chars().take(24).collect();

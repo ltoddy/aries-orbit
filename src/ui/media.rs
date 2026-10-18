@@ -5,6 +5,7 @@ use agent_client_protocol::schema::v1::{ContentBlock, SessionUpdate, ToolCallCon
 use base64::Engine;
 use gpui_kit::{Image, ImageFormat};
 
+use crate::session::chat::Role;
 use crate::ui::ChatView;
 
 fn content_image(content: &ContentBlock) -> Option<Arc<Image>> {
@@ -50,10 +51,17 @@ fn images(update: &SessionUpdate) -> Vec<Arc<Image>> {
 
 impl ChatView {
     pub fn cache_message_images(&mut self, index: usize) {
-        let Some(notification) = self.chat.messages()[index].updates().last() else {
+        let message = &self.chat.messages()[index];
+        let Some(notification) = message.updates().last() else {
             return;
         };
         let update = &notification.update;
+        if let SessionUpdate::UserMessageChunk(chunk) = update {
+            if let Some(image) = content_image(&chunk.content) {
+                self.attachment_images.insert((index, message.updates().len() - 1), image);
+            }
+            return;
+        }
         if let SessionUpdate::CompactionUpdate(update) = update
             && update.summary.is_undefined()
         {
@@ -73,7 +81,16 @@ impl ChatView {
 
     pub fn rebuild_images(&mut self) {
         self.images.clear();
+        self.attachment_images.clear();
         for (index, message) in self.chat.messages().iter().enumerate() {
+            if message.role() == Role::User {
+                for (attachment_index, content) in message.attachments() {
+                    if let Some(image) = content_image(content) {
+                        self.attachment_images.insert((index, attachment_index), image);
+                    }
+                }
+                continue;
+            }
             let images = if let Some(compaction) = message.compaction() {
                 match &compaction.summary {
                     MaybeUndefined::Value(summary) => {

@@ -42,10 +42,9 @@ fn content(value: &Value) -> String {
     match string(value, "type") {
         "text" => string(value, "text").to_owned(),
         "image" | "audio" => format!(
-            "{} · {}\n\n数据长度：{} 个 Base64 字符，可在完整数据中查看。",
+            "{} · {}",
             if string(value, "type") == "image" { "图片" } else { "音频" },
-            string(value, "mimeType"),
-            string(value, "data").len()
+            string(value, "mimeType")
         ),
         "resource_link" => format!(
             "资源：{}\n\n{}\n\n{}",
@@ -159,7 +158,6 @@ impl From<&SessionUpdate> for UpdateDisplay {
                 ("会话模式".into(), code_block("", string(&value, "currentModeId")))
             }
             "config_option_update" => ("配置选项".into(), json(&value["configOptions"])),
-            "session_info_update" => ("会话信息".into(), json(&value)),
             "usage_update" => (
                 "用量".into(),
                 format!(

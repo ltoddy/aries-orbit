@@ -11,8 +11,9 @@ mod session_actions;
 mod session_list;
 mod sidebar;
 mod timeline;
+mod user_message;
 
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, VecDeque};
 use std::fmt;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -61,8 +62,8 @@ pub struct ChatView {
     permissions: VecDeque<Permission>,
     preference_error: Option<String>,
     scroll: ScrollHandle,
-    expanded_updates: HashSet<usize>,
     images: HashMap<usize, Vec<Arc<Image>>>,
+    attachment_images: HashMap<(usize, usize), Arc<Image>>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -162,8 +163,8 @@ impl ChatView {
             permissions: VecDeque::new(),
             preference_error: None,
             scroll: ScrollHandle::new(),
-            expanded_updates: HashSet::new(),
             images: HashMap::new(),
+            attachment_images: HashMap::new(),
             _subscriptions: vec![changes, quit, system_theme],
         }
     }

@@ -1,7 +1,6 @@
 use gpui_kit::assets::IconName;
-use gpui_kit::component::button::{Button, ButtonVariants};
+use gpui_kit::component::Icon;
 use gpui_kit::component::text::TextView;
-use gpui_kit::component::{Icon, Sizable};
 use gpui_kit::prelude::*;
 use gpui_kit::*;
 
@@ -10,7 +9,7 @@ use crate::ui::ChatView;
 use crate::ui::palette::Palette;
 
 impl ChatView {
-    pub fn render_timeline(&self, p: Palette, cx: &mut Context<Self>) -> AnyElement {
+    pub fn render_timeline(&self, p: Palette) -> AnyElement {
         if self.chat.messages().is_empty()
             && self.chat.error().is_none()
             && self.loading_session.is_none()
@@ -80,7 +79,7 @@ impl ChatView {
                             .messages()
                             .iter()
                             .enumerate()
-                            .map(|(index, message)| self.timeline_item(index, message, p, cx)),
+                            .map(|(index, message)| self.timeline_item(index, message, p)),
                     )
                     .when(self.chat.is_busy() || self.loading_session.is_some(), |list| {
                         list.child(
@@ -106,16 +105,11 @@ impl ChatView {
             .into_any_element()
     }
 
-    fn timeline_item(
-        &self,
-        index: usize,
-        message: &Message,
-        p: Palette,
-        cx: &mut Context<Self>,
-    ) -> AnyElement {
-        let user = message.role() == Role::User;
+    fn timeline_item(&self, index: usize, message: &Message, p: Palette) -> AnyElement {
+        if message.role() == Role::User {
+            return self.render_user_message(index, message, p);
+        }
         let card = matches!(message.role(), Role::Thought | Role::Event);
-        let expanded = self.expanded_updates.contains(&index);
         let body = div()
             .w_full()
             .min_w_0()
@@ -146,9 +140,7 @@ impl ChatView {
                         .child(message.title().to_owned()),
                 )
             })
-            .child(if user {
-                div().line_height(px(24.)).child(message.text().to_owned()).into_any_element()
-            } else {
+            .child(
                 TextView::markdown(
                     ("markdown", index),
                     if message.text().is_empty() {
@@ -162,8 +154,8 @@ impl ChatView {
                 .w_full()
                 .text_size(px(14.))
                 .line_height(px(25.))
-                .into_any_element()
-            })
+                .into_any_element(),
+            )
             .when_some(self.images.get(&index), |body, images| {
                 body.child(div().id(("images", index)).w_full().flex().flex_col().gap_2().children(
                     images.iter().map(|image| {
@@ -171,57 +163,9 @@ impl ChatView {
                             .w_full()
                             .h(px(200.))
                             .object_fit(ObjectFit::Contain)
-                            .with_fallback(|| {
-                                div().child("图片无法预览，可展开完整数据查看").into_any_element()
-                            })
+                            .with_fallback(|| div().child("图片无法预览").into_any_element())
                     }),
                 ))
-            })
-            .when(!message.updates().is_empty(), |body| {
-                body.child(
-                    Button::new(("update-details", index))
-                        .ghost()
-                        .xsmall()
-                        .self_start()
-                        .label(if expanded { "收起完整数据" } else { "完整数据" })
-                        .icon(
-                            Icon::new(if expanded {
-                                IconName::ChevronDown
-                            } else {
-                                IconName::ChevronRight
-                            })
-                            .size(px(12.)),
-                        )
-                        .on_click(cx.listener(move |this, _, _, cx| {
-                            if !this.expanded_updates.remove(&index) {
-                                this.expanded_updates.insert(index);
-                            }
-                            cx.notify();
-                        })),
-                )
-            })
-            .when(expanded, |body| {
-                let details = message.details();
-                body.child(
-                    div()
-                        .id(("raw-update", index))
-                        .aria_value(SharedString::from(details.raw()))
-                        .max_h(px(320.))
-                        .overflow_y_scroll()
-                        .p_2()
-                        .rounded(px(8.))
-                        .bg(p.background())
-                        .child(
-                            TextView::markdown(
-                                ("raw-markdown", index),
-                                SharedString::from(details.markdown()),
-                            )
-                            .selectable(true)
-                            .scrollable(false)
-                            .w_full()
-                            .text_size(px(12.)),
-                        ),
-                )
             });
         div()
             .id(("message", index))
@@ -229,16 +173,7 @@ impl ChatView {
             .aria_value(message.text().to_owned())
             .w_full()
             .flex()
-            .when(user, |row| row.justify_end())
-            .child(
-                div()
-                    .min_w_0()
-                    .when(user, |bubble| {
-                        bubble.max_w(relative(0.72)).px_3().py_2().rounded(px(16.)).bg(p.bubble())
-                    })
-                    .when(!user, |bubble| bubble.w_full())
-                    .child(body),
-            )
+            .child(div().min_w_0().w_full().child(body))
             .into_any_element()
     }
 }
