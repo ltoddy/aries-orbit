@@ -8,7 +8,7 @@ use agent_client_protocol::{
 use async_channel::Sender;
 use tokio::sync::{oneshot, watch};
 
-use super::{Event, Permission};
+use crate::acp::{Event, Permission};
 
 pub async fn handle(
     request: RequestPermissionRequest,

@@ -4,7 +4,7 @@ use agent_client_protocol::AcpAgentConfig;
 use async_channel::{Receiver, Sender};
 use tokio::sync::oneshot;
 
-use super::{Command, Event, connect};
+use crate::acp::{Command, Event, connect};
 
 pub struct Bridge {
     commands: Sender<Command>,

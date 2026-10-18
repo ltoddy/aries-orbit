@@ -14,7 +14,7 @@ use agent_client_protocol::{
 use async_channel::{Receiver, Sender};
 use tokio::sync::watch;
 
-use super::{Command, Event};
+use crate::acp::{Command, Event};
 
 pub async fn run(
     connection: ConnectionTo<Agent>,

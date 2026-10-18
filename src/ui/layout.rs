@@ -10,8 +10,10 @@ use gpui_kit::{
     *,
 };
 
-use super::{ChatView, palette::Palette};
-use crate::preferences::Appearance;
+use crate::{
+    preferences::Appearance,
+    ui::{ChatView, palette::Palette},
+};
 
 impl ChatView {
     pub fn render_layout(&self, cx: &mut Context<Self>) -> impl IntoElement {

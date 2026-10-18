@@ -9,10 +9,10 @@ use gpui_kit::{
     *,
 };
 
-use super::{ChatView, palette::Palette};
 use crate::{
     chat::{Message, Role},
     session_update::code_block,
+    ui::{ChatView, palette::Palette},
 };
 
 impl ChatView {

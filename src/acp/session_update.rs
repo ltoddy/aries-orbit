@@ -1,7 +1,7 @@
 use agent_client_protocol::{Error, schema::v1::SessionNotification};
 use async_channel::Sender;
 
-use super::Event;
+use crate::acp::Event;
 
 pub async fn handle(
     notification: SessionNotification,

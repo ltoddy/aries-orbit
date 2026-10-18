@@ -11,9 +11,10 @@ use agent_client_protocol::{
     schema::v1::{SessionNotification, StopReason},
 };
 use async_channel::{Receiver, Sender};
-pub use bridge::Bridge;
-pub use config::aries_config;
 use tokio::sync::{oneshot, watch};
+
+pub use self::bridge::Bridge;
+pub use self::config::aries_config;
 
 #[derive(Debug)]
 pub enum Command {
