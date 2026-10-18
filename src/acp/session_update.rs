@@ -1,0 +1,12 @@
+use agent_client_protocol::{Error, schema::v1::SessionNotification};
+use async_channel::Sender;
+
+use super::Event;
+
+pub async fn handle(
+    notification: SessionNotification,
+    events: &Sender<Event>,
+) -> Result<(), Error> {
+    let _ = events.send(Event::Update(Box::new(notification))).await;
+    Ok(())
+}
