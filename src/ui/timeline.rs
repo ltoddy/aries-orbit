@@ -9,7 +9,7 @@ use crate::ui::ChatView;
 use crate::ui::palette::Palette;
 
 impl ChatView {
-    pub fn render_timeline(&self, p: Palette) -> AnyElement {
+    pub fn render_timeline(&self, p: Palette, cx: &mut Context<Self>) -> AnyElement {
         if self.chat.messages().is_empty()
             && self.chat.error().is_none()
             && self.loading_session.is_none()
@@ -79,7 +79,7 @@ impl ChatView {
                             .messages()
                             .iter()
                             .enumerate()
-                            .map(|(index, message)| self.timeline_item(index, message, p)),
+                            .map(|(index, message)| self.timeline_item(index, message, p, cx)),
                     )
                     .when(self.chat.is_busy() || self.loading_session.is_some(), |list| {
                         list.child(
@@ -105,11 +105,20 @@ impl ChatView {
             .into_any_element()
     }
 
-    fn timeline_item(&self, index: usize, message: &Message, p: Palette) -> AnyElement {
+    fn timeline_item(
+        &self,
+        index: usize,
+        message: &Message,
+        p: Palette,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
         if message.role() == Role::User {
             return self.render_user_message(index, message, p);
         }
-        let card = matches!(message.role(), Role::Thought | Role::Event);
+        if message.role() == Role::Thought {
+            return self.render_thought_message(index, message, p, cx);
+        }
+        let card = message.role() == Role::Event;
         let body = div()
             .w_full()
             .min_w_0()
@@ -128,14 +137,7 @@ impl ChatView {
                         .text_size(px(12.))
                         .text_color(p.muted())
                         .when(card, |header| {
-                            header.child(
-                                Icon::new(if message.role() == Role::Thought {
-                                    IconName::Brain
-                                } else {
-                                    IconName::Activity
-                                })
-                                .size(px(14.)),
-                            )
+                            header.child(Icon::new(IconName::Activity).size(px(14.)))
                         })
                         .child(message.title().to_owned()),
                 )

@@ -23,7 +23,7 @@ impl ChatView {
                     .h_full()
                     .flex()
                     .flex_col()
-                    .child(self.render_timeline(p))
+                    .child(self.render_timeline(p, cx))
                     .child(self.composer(p, cx)),
             )
     }

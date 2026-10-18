@@ -70,6 +70,9 @@ impl Chat {
     pub fn is_busy(&self) -> bool {
         self.busy
     }
+    pub fn is_streaming(&self, index: usize) -> bool {
+        self.stream == Some(index)
+    }
     pub fn error(&self) -> Option<&str> {
         self.error.as_deref()
     }

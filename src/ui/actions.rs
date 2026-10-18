@@ -86,6 +86,8 @@ impl ChatView {
     pub fn reset_chat(&mut self) {
         self.chat.reset();
         self.command_menu.reset();
+        self.expanded_thoughts.clear();
+        self.collapsed_streaming_thoughts.clear();
         self.images.clear();
         self.attachment_images.clear();
         self.session_id = None;
