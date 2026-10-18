@@ -104,12 +104,14 @@ impl ChatView {
                                     .flex_shrink_0(),
                             )
                             .child(
-                                div()
-                                    .flex_1()
-                                    .min_w_0()
-                                    .truncate()
-                                    .line_clamp(1)
-                                    .child(tool.title().to_owned()),
+                                div().flex_1().min_w_0().child(
+                                    div()
+                                        .w_full()
+                                        .min_w_0()
+                                        .text_left()
+                                        .truncate()
+                                        .child(tool.title().to_owned()),
+                                ),
                             ),
                     ),
             )

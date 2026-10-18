@@ -87,14 +87,14 @@ impl ChatView {
                             div()
                                 .flex()
                                 .items_end()
-                                .gap_3()
-                                .p_2()
-                                .rounded(px(24.))
+                                .gap_2()
+                                .p(px(6.))
+                                .rounded(px(18.))
                                 .border_1()
                                 .border_color(p.border())
                                 .bg(p.input())
                                 .child(
-                                    div().id("composer-input").flex_1().min_w_0().px_2().child(
+                                    div().id("composer-input").flex_1().min_w_0().px(px(4.)).child(
                                         Textarea::new(&self.input)
                                             .appearance(false)
                                             .bordered(false)
@@ -119,7 +119,7 @@ impl ChatView {
                                             "发送消息"
                                         })
                                         .size(px(40.))
-                                        .rounded(px(14.))
+                                        .rounded(px(12.))
                                         .disabled(if self.chat.is_busy() {
                                             self.stopping
                                         } else {
