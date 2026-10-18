@@ -53,7 +53,7 @@ impl ChatView {
         match result {
             Ok(()) => {
                 let (session, mut chat, tokens) = loading.into_parts();
-                chat.end_segment();
+                chat.finish(None);
                 self.save_draft(cx);
                 let draft = self.drafts.remove(&session.session_id).unwrap_or_default();
                 self.reset_chat();
@@ -63,6 +63,7 @@ impl ChatView {
                 self.tokens = tokens;
                 self.input.update(cx, |input, cx| input.set_value(draft, window, cx));
                 self.rebuild_images();
+                self.rebuild_tool_diffs(cx);
                 self.scroll.scroll_to_bottom();
             }
             Err(error) => {

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use agent_client_protocol::schema::MaybeUndefined;
-use agent_client_protocol::schema::v1::{ContentBlock, SessionUpdate, ToolCallContent};
+use agent_client_protocol::schema::v1::{ContentBlock, SessionUpdate};
 use base64::Engine;
 use gpui_kit::{Image, ImageFormat};
 
@@ -17,26 +17,12 @@ fn content_image(content: &ContentBlock) -> Option<Arc<Image>> {
     Some(Arc::new(Image::from_bytes(format, bytes)))
 }
 
-fn tool_images(contents: &[ToolCallContent]) -> Vec<Arc<Image>> {
-    contents
-        .iter()
-        .filter_map(|content| match content {
-            ToolCallContent::Content(content) => content_image(&content.content),
-            _ => None,
-        })
-        .collect()
-}
-
 fn images(update: &SessionUpdate) -> Vec<Arc<Image>> {
     match update {
         SessionUpdate::UserMessageChunk(chunk)
         | SessionUpdate::AgentMessageChunk(chunk)
         | SessionUpdate::AgentThoughtChunk(chunk) => {
             content_image(&chunk.content).into_iter().collect()
-        }
-        SessionUpdate::ToolCall(tool) => tool_images(&tool.content),
-        SessionUpdate::ToolCallUpdate(tool) => {
-            tool_images(tool.fields.content.as_deref().unwrap_or_default())
         }
         SessionUpdate::CompactionUpdate(update) => match &update.summary {
             MaybeUndefined::Value(summary) => summary.iter().filter_map(content_image).collect(),
@@ -56,6 +42,19 @@ impl ChatView {
             return;
         };
         let update = &notification.update;
+        if message.tool_call().is_some() {
+            if matches!(update, SessionUpdate::ToolCallUpdate(update) if update.fields.content.is_none())
+            {
+                return;
+            }
+            self.attachment_images.retain(|(message_index, _), _| *message_index != index);
+            for (attachment_index, content) in message.attachments() {
+                if let Some(image) = content_image(content) {
+                    self.attachment_images.insert((index, attachment_index), image);
+                }
+            }
+            return;
+        }
         if let SessionUpdate::UserMessageChunk(chunk) = update {
             if let Some(image) = content_image(&chunk.content) {
                 self.attachment_images.insert((index, message.updates().len() - 1), image);
@@ -83,7 +82,7 @@ impl ChatView {
         self.images.clear();
         self.attachment_images.clear();
         for (index, message) in self.chat.messages().iter().enumerate() {
-            if message.role() == Role::User {
+            if message.role() == Role::User || message.tool_call().is_some() {
                 for (attachment_index, content) in message.attachments() {
                     if let Some(image) = content_image(content) {
                         self.attachment_images.insert((index, attachment_index), image);

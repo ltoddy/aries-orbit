@@ -269,8 +269,10 @@ dependencies = [
  "base64 0.22.1",
  "dirs 6.0.0",
  "gpui-kit",
+ "libc",
  "serde",
  "serde_json",
+ "similar",
  "tokio",
 ]
 
@@ -6636,6 +6638,7 @@ dependencies = [
  "libc",
  "mio",
  "pin-project-lite",
+ "signal-hook-registry",
  "socket2",
  "tokio-macros",
  "windows-sys 0.61.2",

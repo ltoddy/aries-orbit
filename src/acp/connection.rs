@@ -1,14 +1,17 @@
 use std::collections::VecDeque;
 use std::ops::ControlFlow;
+use std::sync::Arc;
 
 use agent_client_protocol::schema::v1::AgentCapabilities;
 use agent_client_protocol::{AcpAgent, AcpAgentConfig, Agent, ConnectionTo, Error};
 use async_channel::{Receiver, Sender};
 use tokio::sync::watch;
 
+use crate::acp::terminal::Terminals;
 use crate::acp::{
-    Command, DeletionReport, Event, delete_sessions, initialize, list_sessions, load_session,
-    new_session, prompt, request_permission, session_update,
+    Command, DeletionReport, Event, create_terminal, delete_sessions, initialize, kill_terminal,
+    list_sessions, load_session, new_session, prompt, release_terminal, request_permission,
+    session_update, terminal_output, wait_for_terminal_exit,
 };
 
 pub struct AgentConnection {
@@ -137,6 +140,12 @@ pub async fn connect(
     events: Sender<Event>,
 ) -> Result<(), Error> {
     let (cancel, cancel_rx) = watch::channel(false);
+    let terminals = Arc::new(Terminals::new(events.clone()));
+    let create = terminals.clone();
+    let output = terminals.clone();
+    let release = terminals.clone();
+    let kill = terminals.clone();
+    let wait = terminals;
     let updates = events.clone();
     let permissions = events.clone();
     agent_client_protocol::Client.builder()
@@ -150,6 +159,36 @@ pub async fn connect(
         .on_receive_request(
             async move |request, responder, connection| {
                 request_permission::handle(request, responder, connection, &permissions, cancel_rx.clone()).await
+            },
+            agent_client_protocol::on_receive_request!(),
+        )
+        .on_receive_request(
+            async move |request, responder, _connection| {
+                create_terminal::handle(request, responder, create.clone()).await
+            },
+            agent_client_protocol::on_receive_request!(),
+        )
+        .on_receive_request(
+            async move |request, responder, _connection| {
+                terminal_output::handle(request, responder, output.clone()).await
+            },
+            agent_client_protocol::on_receive_request!(),
+        )
+        .on_receive_request(
+            async move |request, responder, connection| {
+                release_terminal::handle(request, responder, connection, release.clone()).await
+            },
+            agent_client_protocol::on_receive_request!(),
+        )
+        .on_receive_request(
+            async move |request, responder, connection| {
+                kill_terminal::handle(request, responder, connection, kill.clone()).await
+            },
+            agent_client_protocol::on_receive_request!(),
+        )
+        .on_receive_request(
+            async move |request, responder, connection| {
+                wait_for_terminal_exit::handle(request, responder, connection, wait.clone()).await
             },
             agent_client_protocol::on_receive_request!(),
         )

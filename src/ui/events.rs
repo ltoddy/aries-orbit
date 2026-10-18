@@ -78,7 +78,7 @@ impl ChatView {
                 self.chat.end_segment();
                 self.status = if self.chat.is_busy() { "思考中…" } else { "就绪" }.into();
                 for notification in std::mem::take(&mut self.pending_updates) {
-                    self.receive_update(notification);
+                    self.receive_update(notification, cx);
                 }
                 if action.is_some() {
                     self.refresh_sessions(cx);
@@ -103,8 +103,11 @@ impl ChatView {
                 {
                     self.pending_updates.push(*notification);
                 } else {
-                    self.receive_update(*notification);
+                    self.receive_update(*notification, cx);
                 }
+            }
+            Event::TerminalOutput { session_id, terminal_id, output } => {
+                self.terminal_outputs.insert((session_id, terminal_id), output);
             }
             Event::Permission(permission) => {
                 if self.stopping {
@@ -146,7 +149,7 @@ impl ChatView {
         cx.notify();
     }
 
-    fn receive_update(&mut self, notification: SessionNotification) {
+    fn receive_update(&mut self, notification: SessionNotification, cx: &mut Context<Self>) {
         if self.session_id.as_ref() != Some(&notification.session_id) {
             return;
         }
@@ -166,6 +169,7 @@ impl ChatView {
         }
         if let Some(index) = self.chat.receive(notification) {
             self.cache_message_images(index);
+            self.cache_tool_diffs(index, cx);
         }
     }
 

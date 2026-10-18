@@ -79,7 +79,7 @@ impl ChatView {
             )
             .when(expanded, |body| {
                 body.child(
-                    div().w_full().min_w_0().pl(px(44.)).child(
+                    div().w_full().min_w_0().child(
                         TextView::markdown(
                             ("markdown", index),
                             if message.text().is_empty() {

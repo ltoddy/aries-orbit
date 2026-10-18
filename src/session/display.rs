@@ -68,20 +68,6 @@ fn content(value: &Value) -> String {
     }
 }
 
-fn tool_content(value: &Value) -> String {
-    match string(value, "type") {
-        "content" => content(&value["content"]),
-        "diff" => format!(
-            "文件修改\n\n{}\n\n修改前\n\n{}\n\n修改后\n\n{}",
-            code_block("", string(value, "path")),
-            code_block("", value["oldText"].as_str().unwrap_or("（新建文件）")),
-            code_block("", string(value, "newText"))
-        ),
-        "terminal" => format!("终端引用\n\n{}", code_block("", string(value, "terminalId"))),
-        _ => json(value),
-    }
-}
-
 impl From<&SessionUpdate> for UpdateDisplay {
     fn from(update: &SessionUpdate) -> Self {
         let value = match serde_json::to_value(update) {
@@ -104,35 +90,6 @@ impl From<&SessionUpdate> for UpdateDisplay {
                 .to_owned(),
                 content(&value["content"]),
             ),
-            "tool_call" | "tool_call_update" => {
-                let name = string(&value, "title");
-                let id = string(&value, "toolCallId");
-                let title = if name.is_empty() {
-                    format!("工具更新 · {id}")
-                } else {
-                    format!("工具调用 · {name}")
-                };
-                let mut parts = vec![format!("调用 ID：{id}")];
-                if value.get("status").is_some() {
-                    parts.push(format!("状态：{}", status(&value["status"])));
-                }
-                for (key, label) in [("name", "工具"), ("kind", "类型")] {
-                    if let Some(field) = value.get(key).and_then(Value::as_str) {
-                        parts.push(format!("{label}：{field}"));
-                    }
-                }
-                for (key, label) in
-                    [("rawInput", "输入参数"), ("rawOutput", "输出结果"), ("locations", "文件位置")]
-                {
-                    if let Some(field) = value.get(key) {
-                        parts.push(format!("{label}\n\n{}", json(field)));
-                    }
-                }
-                if let Some(contents) = value["content"].as_array() {
-                    parts.extend(contents.iter().map(tool_content));
-                }
-                (title, parts.join("\n\n"))
-            }
             "plan" => (
                 "执行计划".into(),
                 value["entries"]
@@ -158,22 +115,6 @@ impl From<&SessionUpdate> for UpdateDisplay {
                 ("会话模式".into(), code_block("", string(&value, "currentModeId")))
             }
             "config_option_update" => ("配置选项".into(), json(&value["configOptions"])),
-            "usage_update" => (
-                "用量".into(),
-                format!(
-                    "上下文：{} / {} tokens{}",
-                    value["used"],
-                    value["size"],
-                    value
-                        .get("cost")
-                        .map(|cost| format!(
-                            "\n\n费用：{} {}",
-                            cost["amount"],
-                            string(cost, "currency")
-                        ))
-                        .unwrap_or_default()
-                ),
-            ),
             "notice" => (
                 format!("通知 · {}", string(&value, "title")),
                 format!("{}\n\n{}", string(&value, "severity"), string(&value, "description")),

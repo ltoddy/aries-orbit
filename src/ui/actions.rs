@@ -88,6 +88,8 @@ impl ChatView {
         self.command_menu.reset();
         self.expanded_thoughts.clear();
         self.collapsed_streaming_thoughts.clear();
+        self.tool_expansion.clear();
+        self.tool_diffs.clear();
         self.images.clear();
         self.attachment_images.clear();
         self.session_id = None;

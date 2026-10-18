@@ -112,6 +112,9 @@ impl ChatView {
         p: Palette,
         cx: &mut Context<Self>,
     ) -> AnyElement {
+        if let Some(tool) = message.tool_call() {
+            return self.render_tool_message(index, tool, p, cx);
+        }
         if message.role() == Role::User {
             return self.render_user_message(index, message, p);
         }

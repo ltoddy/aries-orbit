@@ -14,7 +14,7 @@ pub async fn request(connection: &ConnectionTo<Agent>) -> Result<AgentCapabiliti
             .send_request(
                 InitializeRequest::new(ProtocolVersion::V1)
                     .client_capabilities(
-                        ClientCapabilities::new().session(
+                        ClientCapabilities::new().terminal(true).session(
                             ClientSessionCapabilities::new()
                                 .notices(NoticeCapabilities::new())
                                 .compaction(CompactionCapabilities::new()),

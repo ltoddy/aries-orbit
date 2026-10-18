@@ -1,0 +1,280 @@
+use std::collections::HashMap;
+use std::process::Stdio;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+use agent_client_protocol::Error;
+use agent_client_protocol::schema::v1::{
+    CreateTerminalRequest, SessionId, TerminalExitStatus, TerminalId, TerminalOutputResponse,
+};
+use async_channel::Sender;
+use tokio::io::AsyncReadExt;
+use tokio::process::{Child, Command};
+use tokio::sync::{mpsc, watch};
+
+use crate::acp::Event;
+
+type Key = (SessionId, TerminalId);
+
+#[derive(Debug)]
+struct Terminal {
+    output: watch::Receiver<TerminalOutputResponse>,
+    kill: mpsc::UnboundedSender<()>,
+}
+
+#[derive(Debug)]
+pub struct Terminals {
+    entries: Mutex<HashMap<Key, Terminal>>,
+    next_id: AtomicU64,
+    prefix: u128,
+    events: Sender<Event>,
+}
+
+impl Terminals {
+    pub fn new(events: Sender<Event>) -> Self {
+        Self {
+            entries: Mutex::new(HashMap::new()),
+            next_id: AtomicU64::new(1),
+            prefix: SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos(),
+            events,
+        }
+    }
+
+    pub fn create(&self, request: CreateTerminalRequest) -> Result<TerminalId, Error> {
+        if request.cwd.as_ref().is_some_and(|path| !path.is_absolute()) {
+            return Err(Error::invalid_params().data("终端工作目录必须为绝对路径"));
+        }
+        let mut command = Command::new(&request.command);
+        command
+            .args(&request.args)
+            .envs(request.env.iter().map(|env| (&env.name, &env.value)))
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .kill_on_drop(true);
+        if let Some(cwd) = &request.cwd {
+            command.current_dir(cwd);
+        }
+        #[cfg(unix)]
+        command.process_group(0);
+        let child =
+            command.spawn().map_err(|error| Error::internal_error().data(error.to_string()))?;
+        let process = Process { group: child.id(), child };
+        let id = TerminalId::new(format!(
+            "orbit-terminal-{}-{}",
+            self.prefix,
+            self.next_id.fetch_add(1, Ordering::Relaxed)
+        ));
+        let key = (request.session_id, id.clone());
+        let (output, receiver) = watch::channel(TerminalOutputResponse::new("", false));
+        let (kill, kills) = mpsc::unbounded_channel();
+        self.entries
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .insert(key.clone(), Terminal { output: receiver, kill });
+        let events = self.events.clone();
+        let limit =
+            request.output_byte_limit.unwrap_or(1024 * 1024).min(usize::MAX as u64) as usize;
+        tokio::spawn(run(process, key, output, kills, events, limit));
+        Ok(id)
+    }
+
+    pub fn output(
+        &self,
+        session: &SessionId,
+        id: &TerminalId,
+    ) -> Result<TerminalOutputResponse, Error> {
+        Ok(self.receiver(session, id)?.borrow().clone())
+    }
+
+    fn receiver(
+        &self,
+        session: &SessionId,
+        id: &TerminalId,
+    ) -> Result<watch::Receiver<TerminalOutputResponse>, Error> {
+        self.entries
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .get(&(session.clone(), id.clone()))
+            .map(|terminal| terminal.output.clone())
+            .ok_or_else(|| Error::invalid_params().data("终端不存在或已释放"))
+    }
+
+    pub async fn wait(
+        &self,
+        session: &SessionId,
+        id: &TerminalId,
+    ) -> Result<TerminalExitStatus, Error> {
+        let mut receiver = self.receiver(session, id)?;
+        loop {
+            if let Some(status) = receiver.borrow().exit_status.clone() {
+                return Ok(status);
+            }
+            receiver.changed().await.map_err(|_| Error::internal_error().data("终端连接已关闭"))?;
+        }
+    }
+
+    pub async fn kill(&self, session: &SessionId, id: &TerminalId) -> Result<(), Error> {
+        {
+            let entries = self.entries.lock().unwrap_or_else(|error| error.into_inner());
+            let terminal = entries
+                .get(&(session.clone(), id.clone()))
+                .ok_or_else(|| Error::invalid_params().data("终端不存在或已释放"))?;
+            let _ = terminal.kill.send(());
+        }
+        self.wait(session, id).await?;
+        Ok(())
+    }
+
+    pub async fn release(&self, session: &SessionId, id: &TerminalId) -> Result<(), Error> {
+        self.kill(session, id).await?;
+        self.entries
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .remove(&(session.clone(), id.clone()));
+        Ok(())
+    }
+}
+
+struct Process {
+    child: Child,
+    group: Option<u32>,
+}
+
+impl Process {
+    fn kill(&mut self) {
+        #[cfg(unix)]
+        if let Some(group) = self.group {
+            unsafe {
+                libc::kill(-(group as i32), libc::SIGKILL);
+            }
+        }
+        let _ = self.child.start_kill();
+    }
+}
+
+impl Drop for Process {
+    fn drop(&mut self) {
+        self.kill();
+    }
+}
+
+fn append(
+    output: &watch::Sender<TerminalOutputResponse>,
+    pending: &mut Vec<u8>,
+    bytes: &[u8],
+    eof: bool,
+    limit: usize,
+) {
+    pending.extend_from_slice(bytes);
+    let mut complete = 0;
+    while complete < pending.len() {
+        match std::str::from_utf8(&pending[complete..]) {
+            Ok(_) => {
+                complete = pending.len();
+                break;
+            }
+            Err(error) => {
+                complete += error.valid_up_to();
+                match error.error_len() {
+                    Some(length) => complete += length,
+                    None => {
+                        if eof {
+                            complete = pending.len();
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    if complete == 0 {
+        return;
+    }
+    let text = String::from_utf8_lossy(&pending[..complete]);
+    output.send_modify(|state| {
+        state.output.push_str(&text);
+        if state.output.len() > limit {
+            let mut start = state.output.len() - limit;
+            while !state.output.is_char_boundary(start) {
+                start += 1;
+            }
+            state.output.drain(..start);
+            state.truncated = true;
+        }
+    });
+    pending.drain(..complete);
+}
+
+async fn run(
+    mut process: Process,
+    key: Key,
+    output: watch::Sender<TerminalOutputResponse>,
+    mut kills: mpsc::UnboundedReceiver<()>,
+    events: Sender<Event>,
+    limit: usize,
+) {
+    let mut stdout = process.child.stdout.take().expect("stdout is piped");
+    let mut stderr = process.child.stderr.take().expect("stderr is piped");
+    let (mut out_bytes, mut err_bytes) = ([0; 4096], [0; 4096]);
+    let (mut out_pending, mut err_pending) = (Vec::new(), Vec::new());
+    let (mut out_open, mut err_open, mut dirty, mut killed) = (true, true, true, false);
+    let mut status = None;
+    let mut exit_deadline = None;
+    let mut tick = tokio::time::interval(Duration::from_millis(50));
+    loop {
+        if status.is_some()
+            && (!out_open && !err_open
+                || exit_deadline.is_some_and(|deadline| tokio::time::Instant::now() >= deadline))
+        {
+            break;
+        }
+        tokio::select! {
+            _ = kills.recv(), if !killed => { process.kill(); killed = true; }
+            result = process.child.wait(), if status.is_none() => {
+                status = Some(match result {
+                    Ok(exit) => {
+                        let mut status = TerminalExitStatus::new().exit_code(exit.code().and_then(|code| u32::try_from(code).ok()));
+                        #[cfg(unix)]
+                        { use std::os::unix::process::ExitStatusExt; status.signal = exit.signal().map(|signal| signal.to_string()); }
+                        status
+                    }
+                    Err(error) => {
+                        append(&output, &mut out_pending, error.to_string().as_bytes(), true, limit);
+                        TerminalExitStatus::new().signal("wait_failed")
+                    }
+                });
+                exit_deadline = Some(tokio::time::Instant::now() + Duration::from_secs(1));
+            }
+            result = stdout.read(&mut out_bytes), if out_open => {
+                let count = result.unwrap_or_default();
+                out_open = count != 0;
+                append(&output, &mut out_pending, &out_bytes[..count], !out_open, limit);
+                dirty = true;
+            }
+            result = stderr.read(&mut err_bytes), if err_open => {
+                let count = result.unwrap_or_default();
+                err_open = count != 0;
+                append(&output, &mut err_pending, &err_bytes[..count], !err_open, limit);
+                dirty = true;
+            }
+            _ = tick.tick() => {
+                if dirty {
+                    let state = output.borrow().clone();
+                    let _ = events.send(Event::TerminalOutput { session_id: key.0.clone(), terminal_id: key.1.clone(), output: state }).await;
+                    dirty = false;
+                }
+            }
+        }
+    }
+    append(&output, &mut out_pending, &[], true, limit);
+    append(&output, &mut err_pending, &[], true, limit);
+    output.send_modify(|state| state.exit_status = status);
+    let state = output.borrow().clone();
+    let _ = events
+        .send(Event::TerminalOutput { session_id: key.0, terminal_id: key.1, output: state })
+        .await;
+}
+
+pub type SharedTerminals = Arc<Terminals>;

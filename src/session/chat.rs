@@ -1,10 +1,13 @@
+use std::collections::HashMap;
+
 use agent_client_protocol::schema::MaybeUndefined;
 use agent_client_protocol::schema::v1::{
-    AvailableCommand, CompactionStatus, CompactionUpdate, ContentBlock, ContentChunk,
-    SessionNotification, SessionUpdate,
+    AvailableCommand, CompactionStatus, CompactionUpdate, ContentBlock, ContentChunk, SessionId,
+    SessionNotification, SessionUpdate, ToolCall, ToolCallId,
 };
 
 use crate::session::display::UpdateDisplay;
+use crate::session::tool_call::ToolCallState;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Role {
@@ -21,9 +24,13 @@ pub struct Message {
     text: String,
     updates: Vec<SessionNotification>,
     compaction: Option<CompactionUpdate>,
+    tool_call: Option<ToolCallState>,
 }
 
 impl Message {
+    pub fn tool_call(&self) -> Option<&ToolCallState> {
+        self.tool_call.as_ref()
+    }
     pub fn role(&self) -> Role {
         self.role
     }
@@ -37,16 +44,18 @@ impl Message {
         &self.updates
     }
     pub fn attachments(&self) -> impl Iterator<Item = (usize, &ContentBlock)> {
-        self.updates.iter().enumerate().filter_map(|(index, notification)| {
-            match &notification.update {
+        self.updates
+            .iter()
+            .enumerate()
+            .filter_map(|(index, notification)| match &notification.update {
                 SessionUpdate::UserMessageChunk(chunk)
                     if !matches!(chunk.content, ContentBlock::Text(_)) =>
                 {
                     Some((index, &chunk.content))
                 }
                 _ => None,
-            }
-        })
+            })
+            .chain(self.tool_call.iter().flat_map(ToolCallState::attachments))
     }
     pub fn compaction(&self) -> Option<&CompactionUpdate> {
         self.compaction.as_ref()
@@ -61,6 +70,7 @@ pub struct Chat {
     session_title: Option<String>,
     available_commands: Vec<AvailableCommand>,
     stream: Option<usize>,
+    tools: HashMap<(SessionId, ToolCallId), usize>,
 }
 
 impl Chat {
@@ -93,6 +103,7 @@ impl Chat {
             text: text.into(),
             updates: Vec::new(),
             compaction: None,
+            tool_call: None,
         });
         self.busy = true;
         self.error = None;
@@ -100,6 +111,15 @@ impl Chat {
     }
 
     pub fn receive(&mut self, notification: SessionNotification) -> Option<usize> {
+        if matches!(&notification.update, SessionUpdate::UsageUpdate(_)) {
+            return None;
+        }
+        if matches!(
+            &notification.update,
+            SessionUpdate::ToolCall(_) | SessionUpdate::ToolCallUpdate(_)
+        ) {
+            return Some(self.receive_tool_call(notification));
+        }
         if let SessionUpdate::AvailableCommandsUpdate(update) = notification.update {
             self.available_commands = update.available_commands;
             return None;
@@ -143,6 +163,7 @@ impl Chat {
                 text: text.into(),
                 updates: vec![notification],
                 compaction: None,
+                tool_call: None,
             });
         } else {
             self.end_segment();
@@ -153,9 +174,47 @@ impl Chat {
                 text,
                 updates: vec![notification],
                 compaction: None,
+                tool_call: None,
             });
         }
         Some(self.messages.len() - 1)
+    }
+
+    fn receive_tool_call(&mut self, notification: SessionNotification) -> usize {
+        let id = match &notification.update {
+            SessionUpdate::ToolCall(call) => call.tool_call_id.clone(),
+            SessionUpdate::ToolCallUpdate(update) => update.tool_call_id.clone(),
+            _ => unreachable!(),
+        };
+        let key = (notification.session_id.clone(), id.clone());
+        let index = match self.tools.get(&key) {
+            Some(index) => *index,
+            None => {
+                self.end_segment();
+                let index = self.messages.len();
+                self.messages.push(Message {
+                    role: Role::Event,
+                    title: String::new(),
+                    text: String::new(),
+                    updates: Vec::new(),
+                    compaction: None,
+                    tool_call: Some(ToolCallState::new(ToolCall::new(id, ""))),
+                });
+                self.tools.insert(key, index);
+                index
+            }
+        };
+        let message = &mut self.messages[index];
+        let tool = message.tool_call.as_mut().expect("tool entry has state");
+        match &notification.update {
+            SessionUpdate::ToolCall(call) => tool.replace(call.clone()),
+            SessionUpdate::ToolCallUpdate(update) => tool.update(update.fields.clone()),
+            _ => unreachable!(),
+        }
+        message.title = tool.title().into();
+        message.updates.clear();
+        message.updates.push(notification);
+        index
     }
 
     fn receive_compaction(&mut self, notification: SessionNotification) -> usize {
@@ -184,6 +243,7 @@ impl Chat {
                         id.clone(),
                         CompactionStatus::InProgress,
                     )),
+                    tool_call: None,
                 });
                 self.messages.len() - 1
             });
@@ -223,6 +283,11 @@ impl Chat {
 
     pub fn finish(&mut self, error: Option<String>) {
         self.end_segment();
+        for message in &mut self.messages {
+            if let Some(tool) = &mut message.tool_call {
+                tool.finish();
+            }
+        }
         self.busy = false;
         self.error = error;
     }
