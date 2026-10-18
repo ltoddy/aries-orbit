@@ -4,7 +4,7 @@ use base64::Engine;
 use gpui_kit::{Image, ImageFormat};
 use serde_json::Value;
 
-pub fn images(update: &impl serde::Serialize) -> Vec<Arc<Image>> {
+pub fn images(update: &impl serde::Serialize) -> Result<Vec<Arc<Image>>, serde_json::Error> {
     fn collect(value: &Value, images: &mut Vec<Arc<Image>>) {
         match value {
             Value::Object(fields) => {
@@ -35,9 +35,6 @@ pub fn images(update: &impl serde::Serialize) -> Vec<Arc<Image>> {
         }
     }
     let mut images = Vec::new();
-    collect(
-        &serde_json::to_value(update).expect("ACP notifications serialize"),
-        &mut images,
-    );
-    images
+    collect(&serde_json::to_value(update)?, &mut images);
+    Ok(images)
 }

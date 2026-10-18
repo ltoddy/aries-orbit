@@ -6,7 +6,7 @@ use agent_client_protocol::schema::{
     },
 };
 
-use crate::session_update::describe;
+use crate::session_update::UpdateDisplay;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Role {
@@ -18,22 +18,51 @@ pub enum Role {
 
 #[derive(Clone, Debug)]
 pub struct Message {
-    pub role: Role,
-    pub title: String,
-    pub text: String,
-    pub updates: Vec<SessionNotification>,
-    pub compaction: Option<CompactionUpdate>,
+    role: Role,
+    title: String,
+    text: String,
+    updates: Vec<SessionNotification>,
+    compaction: Option<CompactionUpdate>,
+}
+
+impl Message {
+    pub fn role(&self) -> Role {
+        self.role
+    }
+    pub fn title(&self) -> &str {
+        &self.title
+    }
+    pub fn text(&self) -> &str {
+        &self.text
+    }
+    pub fn updates(&self) -> &[SessionNotification] {
+        &self.updates
+    }
+    pub fn compaction(&self) -> Option<&CompactionUpdate> {
+        self.compaction.as_ref()
+    }
 }
 
 #[derive(Debug, Default)]
 pub struct Chat {
-    pub messages: Vec<Message>,
-    pub busy: bool,
-    pub error: Option<String>,
+    messages: Vec<Message>,
+    busy: bool,
+    error: Option<String>,
+    session_title: Option<String>,
     stream: Option<usize>,
 }
 
 impl Chat {
+    pub fn messages(&self) -> &[Message] {
+        &self.messages
+    }
+    pub fn is_busy(&self) -> bool {
+        self.busy
+    }
+    pub fn error(&self) -> Option<&str> {
+        self.error.as_deref()
+    }
+
     pub fn begin_turn(&mut self, text: &str) -> Option<String> {
         let text = text.trim();
         if self.busy || text.is_empty() {
@@ -53,6 +82,9 @@ impl Chat {
     }
 
     pub fn receive(&mut self, notification: SessionNotification) -> usize {
+        if let SessionUpdate::SessionInfoUpdate(update) = &notification.update {
+            update.title.clone().update_to(&mut self.session_title);
+        }
         if matches!(
             &notification.update,
             SessionUpdate::CompactionUpdate(_) | SessionUpdate::CompactionSummaryChunk(_)
@@ -87,11 +119,11 @@ impl Chat {
             });
         } else {
             self.end_segment();
-            let display = describe(&notification.update);
+            let (title, text) = UpdateDisplay::from(&notification.update).into_parts();
             self.messages.push(Message {
                 role: Role::Event,
-                title: display.title,
-                text: display.body,
+                title,
+                text,
                 updates: vec![notification],
                 compaction: None,
             });
@@ -158,9 +190,8 @@ impl Chat {
             }
             _ => unreachable!(),
         }
-        let display = describe(&SessionUpdate::CompactionUpdate(state.clone()));
-        message.title = display.title;
-        message.text = display.body;
+        (message.title, message.text) =
+            UpdateDisplay::from(&SessionUpdate::CompactionUpdate(state.clone())).into_parts();
         message.updates.push(notification);
         index
     }
@@ -179,10 +210,21 @@ impl Chat {
         *self = Self::default();
     }
 
+    pub fn set_title(&mut self, title: Option<String>) {
+        self.session_title = title;
+    }
+
     pub fn title(&self) -> String {
+        if let Some(title) = self
+            .session_title
+            .as_deref()
+            .filter(|title| !title.trim().is_empty())
+        {
+            return title.to_owned();
+        }
         self.messages
             .iter()
-            .find(|message| message.role == Role::User && message.updates.is_empty())
+            .find(|message| message.role == Role::User)
             .map(|message| {
                 let line = message.text.lines().next().unwrap_or_default();
                 let mut title: String = line.chars().take(24).collect();

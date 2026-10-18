@@ -6,6 +6,7 @@ use tokio::sync::oneshot;
 
 use crate::acp::{Command, Event, connect};
 
+#[derive(Debug)]
 pub struct Bridge {
     commands: Sender<Command>,
     events: Receiver<Event>,
@@ -54,8 +55,8 @@ impl Bridge {
         self.commands.try_send(command)
     }
 
-    pub fn events(&self) -> Receiver<Event> {
-        self.events.clone()
+    pub fn events(&self) -> &Receiver<Event> {
+        &self.events
     }
 
     pub async fn shutdown(mut self) {

@@ -14,21 +14,27 @@ pub enum Appearance {
     Dark,
 }
 
-#[derive(Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Preferences {
-    pub appearance: Appearance,
+    appearance: Appearance,
 }
 
 impl Preferences {
+    pub fn new(appearance: Appearance) -> Self {
+        Self { appearance }
+    }
+
+    pub fn appearance(&self) -> Appearance {
+        self.appearance
+    }
+
     pub fn path() -> Option<PathBuf> {
         dirs::config_dir().map(|path| path.join("aries-orbit/preferences.json"))
     }
 
-    pub fn load(path: &Path) -> Self {
-        fs::read(path)
-            .ok()
-            .and_then(|bytes| serde_json::from_slice(&bytes).ok())
-            .unwrap_or_default()
+    pub fn load(path: &Path) -> std::io::Result<Self> {
+        let bytes = fs::read(path)?;
+        serde_json::from_slice(&bytes).map_err(std::io::Error::from)
     }
 
     pub fn save(&self, path: &Path) -> std::io::Result<()> {

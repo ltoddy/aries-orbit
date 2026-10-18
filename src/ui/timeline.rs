@@ -16,8 +16,11 @@ use crate::{
 };
 
 impl ChatView {
-    pub fn timeline(&self, p: Palette, cx: &mut Context<Self>) -> AnyElement {
-        if self.chat.messages.is_empty() {
+    pub fn render_timeline(&self, p: Palette, cx: &mut Context<Self>) -> AnyElement {
+        if self.chat.messages().is_empty()
+            && self.chat.error().is_none()
+            && self.loading_session.is_none()
+        {
             return div()
                 .flex_1()
                 .min_h_0()
@@ -38,8 +41,8 @@ impl ChatView {
                                 .size(px(56.))
                                 .rounded(px(16.))
                                 .border_1()
-                                .border_color(p.border)
-                                .bg(p.input)
+                                .border_color(p.border())
+                                .bg(p.input())
                                 .flex()
                                 .items_center()
                                 .justify_center()
@@ -56,7 +59,7 @@ impl ChatView {
                             div()
                                 .text_size(px(14.))
                                 .line_height(px(24.))
-                                .text_color(p.muted)
+                                .text_color(p.muted())
                                 .child("聊聊你的想法，或让 Aries 帮你完成项目中的任务。"),
                         ),
                 )
@@ -80,28 +83,31 @@ impl ChatView {
                     .gap_5()
                     .children(
                         self.chat
-                            .messages
+                            .messages()
                             .iter()
                             .enumerate()
                             .map(|(index, message)| self.timeline_item(index, message, p, cx)),
                     )
-                    .when(self.chat.busy, |list| {
-                        list.child(
-                            div()
-                                .text_size(px(12.))
-                                .text_color(p.muted)
-                                .child(self.status.clone()),
-                        )
-                    })
-                    .when_some(self.chat.error.clone(), |list, error| {
+                    .when(
+                        self.chat.is_busy() || self.loading_session.is_some(),
+                        |list| {
+                            list.child(
+                                div()
+                                    .text_size(px(12.))
+                                    .text_color(p.muted())
+                                    .child(self.status.clone()),
+                            )
+                        },
+                    )
+                    .when_some(self.chat.error().map(str::to_owned), |list, error| {
                         list.child(
                             div()
                                 .id("chat-error")
                                 .rounded(px(12.))
                                 .p_3()
                                 .border_1()
-                                .border_color(p.border)
-                                .text_color(p.danger)
+                                .border_color(p.border())
+                                .text_color(p.danger())
                                 .child(error),
                         )
                     }),
@@ -116,8 +122,8 @@ impl ChatView {
         p: Palette,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let user = message.role == Role::User;
-        let card = matches!(message.role, Role::Thought | Role::Event);
+        let user = message.role() == Role::User;
+        let card = matches!(message.role(), Role::Thought | Role::Event);
         let expanded = self.expanded_updates.contains(&index);
         let body = div()
             .w_full()
@@ -128,21 +134,21 @@ impl ChatView {
             .when(card, |body| {
                 body.p_3()
                     .rounded(px(12.))
-                    .bg(p.input)
+                    .bg(p.input())
                     .border_1()
-                    .border_color(p.border)
+                    .border_color(p.border())
             })
-            .when(card || !message.updates.is_empty(), |body| {
+            .when(card || !message.updates().is_empty(), |body| {
                 body.child(
                     div()
                         .flex()
                         .items_center()
                         .gap_2()
                         .text_size(px(12.))
-                        .text_color(p.muted)
+                        .text_color(p.muted())
                         .when(card, |header| {
                             header.child(
-                                Icon::new(if message.role == Role::Thought {
+                                Icon::new(if message.role() == Role::Thought {
                                     IconName::Brain
                                 } else {
                                     IconName::Activity
@@ -150,21 +156,21 @@ impl ChatView {
                                 .size(px(14.)),
                             )
                         })
-                        .child(message.title.clone()),
+                        .child(message.title().to_owned()),
                 )
             })
             .child(if user {
                 div()
                     .line_height(px(24.))
-                    .child(message.text.clone())
+                    .child(message.text().to_owned())
                     .into_any_element()
             } else {
                 TextView::markdown(
                     ("markdown", index),
-                    if message.text.is_empty() {
+                    if message.text().is_empty() {
                         "（空内容）".into()
                     } else {
-                        message.text.clone()
+                        message.text().to_owned()
                     },
                 )
                 .selectable(true)
@@ -195,7 +201,7 @@ impl ChatView {
                         })),
                 )
             })
-            .when(!message.updates.is_empty(), |body| {
+            .when(!message.updates().is_empty(), |body| {
                 body.child(
                     Button::new(("update-details", index))
                         .ghost()
@@ -223,8 +229,9 @@ impl ChatView {
                 )
             })
             .when(expanded, |body| {
-                let raw = serde_json::to_string_pretty(&message.updates)
-                    .expect("received ACP notifications serialize");
+                let raw = serde_json::to_string_pretty(message.updates()).unwrap_or_else(|error| {
+                    format!("无法序列化会话更新：{error}\n\n{:#?}", message.updates())
+                });
                 body.child(
                     div()
                         .id(("raw-update", index))
@@ -233,7 +240,7 @@ impl ChatView {
                         .overflow_y_scroll()
                         .p_2()
                         .rounded(px(8.))
-                        .bg(p.background)
+                        .bg(p.background())
                         .child(
                             TextView::markdown(("raw-markdown", index), code_block("json", &raw))
                                 .selectable(true)
@@ -245,8 +252,8 @@ impl ChatView {
             });
         div()
             .id(("message", index))
-            .aria_label(message.title.clone())
-            .aria_value(message.text.clone())
+            .aria_label(message.title().to_owned())
+            .aria_value(message.text().to_owned())
             .w_full()
             .flex()
             .when(user, |row| row.justify_end())
@@ -259,7 +266,7 @@ impl ChatView {
                             .px_3()
                             .py_2()
                             .rounded(px(16.))
-                            .bg(p.bubble)
+                            .bg(p.bubble())
                     })
                     .when(!user, |bubble| bubble.w_full())
                     .child(body),

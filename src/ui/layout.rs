@@ -21,8 +21,8 @@ impl ChatView {
         div()
             .size_full()
             .flex()
-            .bg(p.background)
-            .text_color(p.foreground)
+            .bg(p.background())
+            .text_color(p.foreground())
             .font_family(".SystemUIFont")
             .text_size(px(14.))
             .child(self.sidebar(p, cx))
@@ -33,7 +33,7 @@ impl ChatView {
                     .h_full()
                     .flex()
                     .flex_col()
-                    .child(self.timeline(p, cx))
+                    .child(self.render_timeline(p, cx))
                     .child(self.composer(p, cx)),
             )
     }
@@ -47,9 +47,9 @@ impl ChatView {
             .flex_shrink_0()
             .flex()
             .flex_col()
-            .bg(p.sidebar)
+            .bg(p.sidebar())
             .border_r_1()
-            .border_color(p.border)
+            .border_color(p.border())
             .child(
                 div()
                     .h(px(56.))
@@ -59,13 +59,13 @@ impl ChatView {
                     .items_center()
                     .gap_3()
                     .border_b_1()
-                    .border_color(p.border)
+                    .border_color(p.border())
                     .child(
                         div()
                             .size(px(32.))
                             .rounded(px(12.))
-                            .bg(p.foreground)
-                            .text_color(p.sidebar)
+                            .bg(p.foreground())
+                            .text_color(p.sidebar())
                             .flex()
                             .items_center()
                             .justify_center()
@@ -80,7 +80,7 @@ impl ChatView {
                             .child(
                                 div()
                                     .text_size(px(12.))
-                                    .text_color(p.muted)
+                                    .text_color(p.muted())
                                     .child("与你的 Agent 一起工作"),
                             ),
                     ),
@@ -93,50 +93,16 @@ impl ChatView {
                         .w_full()
                         .h(px(38.))
                         .rounded(px(12.))
-                        .disabled(self.chat.busy)
+                        .disabled(!self.can_start_new_chat())
                         .on_click(cx.listener(|this, _, window, cx| this.new_chat(window, cx))),
                 ),
             )
-            .child(
-                div()
-                    .flex_1()
-                    .min_h_0()
-                    .px_3()
-                    .child(
-                        div()
-                            .px_2()
-                            .mb_2()
-                            .text_size(px(12.))
-                            .text_color(p.muted)
-                            .child("对话"),
-                    )
-                    .child(
-                        div()
-                            .id("current-chat")
-                            .px_3()
-                            .py_2()
-                            .rounded(px(12.))
-                            .bg(p.hover)
-                            .child(
-                                div()
-                                    .truncate()
-                                    .font_weight(FontWeight::MEDIUM)
-                                    .child(self.chat.title()),
-                            )
-                            .child(div().mt_1().text_size(px(12.)).text_color(p.muted).child(
-                                if self.session_id.is_some() {
-                                    "当前会话"
-                                } else {
-                                    "发送消息开始对话"
-                                },
-                            )),
-                    ),
-            )
+            .child(self.render_sessions(p, cx))
             .child(
                 div()
                     .p_3()
                     .border_t_1()
-                    .border_color(p.border)
+                    .border_color(p.border())
                     .flex()
                     .flex_col()
                     .gap_3()
@@ -147,7 +113,7 @@ impl ChatView {
                             .gap_2()
                             .px_1()
                             .text_size(px(12.))
-                            .text_color(p.muted)
+                            .text_color(p.muted())
                             .child(Icon::new(IconName::Folder).size(px(13.)))
                             .id("workspace")
                             .tooltip(move |window, cx| {
@@ -171,13 +137,13 @@ impl ChatView {
                             .p_1()
                             .rounded(px(12.))
                             .border_1()
-                            .border_color(p.border)
+                            .border_color(p.border())
                             .child(
                                 div()
                                     .px_2()
                                     .pt_1()
                                     .text_size(px(12.))
-                                    .text_color(p.muted)
+                                    .text_color(p.muted())
                                     .child("主题"),
                             )
                             .child(
@@ -195,7 +161,7 @@ impl ChatView {
                                             .min_w_0()
                                             .rounded(px(8.))
                                             .when(self.appearance == Appearance::System, |button| {
-                                                button.bg(p.hover)
+                                                button.bg(p.hover())
                                             })
                                             .on_click(cx.listener(|this, _, _, cx| {
                                                 this.set_appearance(Appearance::System, cx)
@@ -211,7 +177,7 @@ impl ChatView {
                                             .min_w_0()
                                             .rounded(px(8.))
                                             .when(self.appearance == Appearance::Light, |button| {
-                                                button.bg(p.hover)
+                                                button.bg(p.hover())
                                             })
                                             .on_click(cx.listener(|this, _, _, cx| {
                                                 this.set_appearance(Appearance::Light, cx)
@@ -227,7 +193,7 @@ impl ChatView {
                                             .min_w_0()
                                             .rounded(px(8.))
                                             .when(self.appearance == Appearance::Dark, |button| {
-                                                button.bg(p.hover)
+                                                button.bg(p.hover())
                                             })
                                             .on_click(cx.listener(|this, _, _, cx| {
                                                 this.set_appearance(Appearance::Dark, cx)
@@ -236,14 +202,18 @@ impl ChatView {
                             ),
                     )
                     .when_some(self.preference_error.clone(), |footer, error| {
-                        footer.child(div().text_size(px(11.)).text_color(p.danger).child(error))
+                        footer.child(div().text_size(px(11.)).text_color(p.danger()).child(error))
                     }),
             )
     }
 
     fn composer(&self, p: Palette, cx: &mut Context<Self>) -> impl IntoElement {
-        let can_send = !self.input.read(cx).value().trim().is_empty() && !self.disconnected;
-        div().flex_shrink_0().p_4().bg(p.background).child(
+        let can_send = !self.input.read(cx).value().trim().is_empty()
+            && !self.disconnected
+            && !self.session_actions.is_busy()
+            && self.loading_session.is_none()
+            && !self.choosing_directory;
+        div().flex_shrink_0().p_4().bg(p.background()).child(
             div()
                 .w_full()
                 .max_w(px(768.))
@@ -257,21 +227,21 @@ impl ChatView {
                             .p_3()
                             .rounded(px(12.))
                             .border_1()
-                            .border_color(p.border)
-                            .bg(p.input)
+                            .border_color(p.border())
+                            .bg(p.input())
                             .child(
                                 div()
                                     .mb_2()
                                     .font_weight(FontWeight::MEDIUM)
-                                    .child(permission.title.clone()),
+                                    .child(permission.title().to_owned()),
                             )
                             .child(
                                 div().flex().flex_wrap().gap_2().children(
-                                    permission.options.iter().enumerate().map(
-                                        |(index, (id, name))| {
-                                            let id = id.clone();
+                                    permission.options().iter().enumerate().map(
+                                        |(index, option)| {
+                                            let id = option.option_id.clone();
                                             Button::new(("permission", index))
-                                                .label(name.clone())
+                                                .label(option.name.clone())
                                                 .small()
                                                 .on_click(cx.listener(move |this, _, _, cx| {
                                                     this.choose_permission(id.clone(), cx)
@@ -290,7 +260,7 @@ impl ChatView {
                         .gap_3()
                         .px_2()
                         .text_size(px(12.))
-                        .text_color(p.muted)
+                        .text_color(p.muted())
                         .child(
                             div()
                                 .id("status")
@@ -310,8 +280,8 @@ impl ChatView {
                         .p_2()
                         .rounded(px(24.))
                         .border_1()
-                        .border_color(p.border)
-                        .bg(p.input)
+                        .border_color(p.border())
+                        .bg(p.input())
                         .child(
                             div().id("composer-input").flex_1().min_w_0().px_2().child(
                                 Textarea::new(&self.input)
@@ -325,27 +295,27 @@ impl ChatView {
                             Button::new("send")
                                 .primary()
                                 .icon(
-                                    Icon::new(if self.chat.busy {
+                                    Icon::new(if self.chat.is_busy() {
                                         IconName::Square
                                     } else {
                                         IconName::Send
                                     })
                                     .size(px(17.)),
                                 )
-                                .accessibility_label(if self.chat.busy {
+                                .accessibility_label(if self.chat.is_busy() {
                                     "停止回复"
                                 } else {
                                     "发送消息"
                                 })
                                 .size(px(40.))
                                 .rounded(px(14.))
-                                .disabled(if self.chat.busy {
+                                .disabled(if self.chat.is_busy() {
                                     self.stopping
                                 } else {
                                     !can_send
                                 })
                                 .on_click(cx.listener(|this, _, window, cx| {
-                                    if this.chat.busy {
+                                    if this.chat.is_busy() {
                                         this.stop(cx);
                                     } else {
                                         this.send(window, cx);
@@ -357,7 +327,7 @@ impl ChatView {
                     div()
                         .px_2()
                         .text_size(px(11.))
-                        .text_color(p.muted)
+                        .text_color(p.muted())
                         .child("Enter 发送，Shift + Enter 换行"),
                 ),
         )

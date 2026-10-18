@@ -6,20 +6,47 @@ use gpui_kit::{
 
 use crate::preferences::Appearance;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Palette {
-    pub background: Hsla,
-    pub sidebar: Hsla,
-    pub input: Hsla,
-    pub bubble: Hsla,
-    pub foreground: Hsla,
-    pub muted: Hsla,
-    pub border: Hsla,
-    pub hover: Hsla,
-    pub danger: Hsla,
+    background: Hsla,
+    sidebar: Hsla,
+    input: Hsla,
+    bubble: Hsla,
+    foreground: Hsla,
+    muted: Hsla,
+    border: Hsla,
+    hover: Hsla,
+    danger: Hsla,
 }
 
 impl Palette {
+    pub fn background(&self) -> Hsla {
+        self.background
+    }
+    pub fn sidebar(&self) -> Hsla {
+        self.sidebar
+    }
+    pub fn input(&self) -> Hsla {
+        self.input
+    }
+    pub fn bubble(&self) -> Hsla {
+        self.bubble
+    }
+    pub fn foreground(&self) -> Hsla {
+        self.foreground
+    }
+    pub fn muted(&self) -> Hsla {
+        self.muted
+    }
+    pub fn border(&self) -> Hsla {
+        self.border
+    }
+    pub fn hover(&self) -> Hsla {
+        self.hover
+    }
+    pub fn danger(&self) -> Hsla {
+        self.danger
+    }
     pub fn new(mode: ThemeMode) -> Self {
         let colors = match mode {
             ThemeMode::Dark => [
@@ -71,19 +98,19 @@ pub fn sync(mode: ThemeMode, cx: &mut App) {
     Theme::change(mode, None, cx);
     let p = Palette::new(mode);
     Theme::update(cx, |theme| {
-        theme.colors.background = p.background;
-        theme.colors.foreground = p.foreground;
-        theme.colors.primary = p.foreground;
-        theme.colors.primary_foreground = p.background;
-        theme.colors.primary_hover = p.muted;
-        theme.colors.secondary = p.bubble;
-        theme.colors.secondary_foreground = p.foreground;
-        theme.colors.muted = p.bubble;
-        theme.colors.muted_foreground = p.muted;
-        theme.colors.accent = p.hover;
-        theme.colors.accent_foreground = p.foreground;
-        theme.colors.border = p.border;
-        theme.colors.input = p.border;
-        theme.colors.ring = p.muted;
+        theme.colors.background = p.background();
+        theme.colors.foreground = p.foreground();
+        theme.colors.primary = p.foreground();
+        theme.colors.primary_foreground = p.background();
+        theme.colors.primary_hover = p.muted();
+        theme.colors.secondary = p.bubble();
+        theme.colors.secondary_foreground = p.foreground();
+        theme.colors.muted = p.bubble();
+        theme.colors.muted_foreground = p.muted();
+        theme.colors.accent = p.hover();
+        theme.colors.accent_foreground = p.foreground();
+        theme.colors.border = p.border();
+        theme.colors.input = p.border();
+        theme.colors.ring = p.muted();
     });
 }

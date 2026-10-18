@@ -1,6 +1,11 @@
+#![warn(missing_debug_implementations)]
+
 mod acp;
 mod chat;
 mod preferences;
+mod session_actions;
+mod session_list;
+mod session_load;
 mod session_update;
 mod ui;
 
