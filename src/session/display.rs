@@ -155,30 +155,6 @@ impl From<&SessionUpdate> for UpdateDisplay {
                     .filter(|text| !text.is_empty())
                     .unwrap_or_else(|| "计划已清空".into()),
             ),
-            "available_commands_update" => (
-                "可用命令".into(),
-                value["availableCommands"]
-                    .as_array()
-                    .map(|commands| {
-                        commands
-                            .iter()
-                            .map(|command| {
-                                format!(
-                                    "/{} — {}{}",
-                                    string(command, "name"),
-                                    string(command, "description"),
-                                    command
-                                        .get("input")
-                                        .map(|input| format!("\n\n{}", json(input)))
-                                        .unwrap_or_default()
-                                )
-                            })
-                            .collect::<Vec<_>>()
-                            .join("\n\n")
-                    })
-                    .filter(|text| !text.is_empty())
-                    .unwrap_or_else(|| "暂无可用命令".into()),
-            ),
             "current_mode_update" => {
                 ("会话模式".into(), code_block("", string(&value, "currentModeId")))
             }

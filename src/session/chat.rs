@@ -2,8 +2,8 @@ use std::sync::{Arc, OnceLock};
 
 use agent_client_protocol::schema::MaybeUndefined;
 use agent_client_protocol::schema::v1::{
-    CompactionStatus, CompactionUpdate, ContentBlock, ContentChunk, SessionNotification,
-    SessionUpdate,
+    AvailableCommand, CompactionStatus, CompactionUpdate, ContentBlock, ContentChunk,
+    SessionNotification, SessionUpdate,
 };
 
 use crate::session::display::{UpdateDisplay, code_block};
@@ -75,6 +75,7 @@ pub struct Chat {
     busy: bool,
     error: Option<String>,
     session_title: Option<String>,
+    available_commands: Vec<AvailableCommand>,
     stream: Option<usize>,
 }
 
@@ -87,6 +88,10 @@ impl Chat {
     }
     pub fn error(&self) -> Option<&str> {
         self.error.as_deref()
+    }
+
+    pub fn available_commands(&self) -> &[AvailableCommand] {
+        &self.available_commands
     }
 
     pub fn begin_turn(&mut self, text: &str) -> Option<String> {
@@ -108,7 +113,11 @@ impl Chat {
         Some(text.into())
     }
 
-    pub fn receive(&mut self, notification: SessionNotification) -> usize {
+    pub fn receive(&mut self, notification: SessionNotification) -> Option<usize> {
+        if let SessionUpdate::AvailableCommandsUpdate(update) = notification.update {
+            self.available_commands = update.available_commands;
+            return None;
+        }
         if let SessionUpdate::SessionInfoUpdate(update) = &notification.update {
             update.title.clone().update_to(&mut self.session_title);
         }
@@ -117,7 +126,7 @@ impl Chat {
             SessionUpdate::CompactionUpdate(_) | SessionUpdate::CompactionSummaryChunk(_)
         ) {
             self.end_segment();
-            return self.receive_compaction(notification);
+            return Some(self.receive_compaction(notification));
         }
         let chunk = streamed_content(&notification.update);
         if let Some((role, title, chunk)) = chunk
@@ -135,7 +144,7 @@ impl Chat {
                 self.messages[index].text.push_str(&content.text);
                 self.messages[index].details.take();
                 self.messages[index].updates.push(notification);
-                return index;
+                return Some(index);
             }
             self.stream = Some(self.messages.len());
             self.messages.push(Message {
@@ -158,7 +167,7 @@ impl Chat {
                 details: OnceLock::new(),
             });
         }
-        self.messages.len() - 1
+        Some(self.messages.len() - 1)
     }
 
     fn receive_compaction(&mut self, notification: SessionNotification) -> usize {

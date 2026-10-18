@@ -29,7 +29,7 @@ impl SessionLoad {
         if let SessionUpdate::UsageUpdate(usage) = &notification.update {
             self.tokens = Some(usage.used);
         }
-        self.chat.receive(notification);
+        let _ = self.chat.receive(notification);
     }
 
     pub fn into_parts(self) -> (SessionInfo, Chat, Option<u64>) {

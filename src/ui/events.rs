@@ -5,6 +5,7 @@ use gpui_kit::*;
 
 use crate::acp::{Bridge, Event};
 use crate::ui::ChatView;
+use crate::ui::new_chat::NewChatAction;
 
 impl ChatView {
     pub fn connect(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -56,7 +57,7 @@ impl ChatView {
             Event::Connected { list_sessions, load_session } => {
                 self.session_list.connected(list_sessions);
                 self.load_supported = load_session;
-                if !self.stopping {
+                if !self.stopping && self.creating_session.is_none() {
                     self.status = if self.chat.is_busy() { "思考中…" } else { "就绪" }.into();
                 }
                 self.refresh_sessions(cx);
@@ -72,11 +73,18 @@ impl ChatView {
                 self.finish_session_load(session_id, result, window, cx);
             }
             Event::Ready(id) => {
+                let action = self.creating_session.take();
                 self.session_id = Some(id);
                 self.chat.end_segment();
-                self.status = "思考中…".into();
+                self.status = if self.chat.is_busy() { "思考中…" } else { "就绪" }.into();
                 for notification in std::mem::take(&mut self.pending_updates) {
                     self.receive_update(notification);
+                }
+                if action.is_some() {
+                    self.refresh_sessions(cx);
+                }
+                if matches!(action, Some(NewChatAction::SendPrompt)) {
+                    self.send(window, cx);
                 }
             }
             Event::Update(notification) => {
@@ -90,7 +98,9 @@ impl ChatView {
                     cx.notify();
                     return;
                 }
-                if self.session_id.is_none() && self.chat.is_busy() {
+                if self.session_id.is_none()
+                    && (self.chat.is_busy() || self.creating_session.is_some())
+                {
                     self.pending_updates.push(*notification);
                 } else {
                     self.receive_update(*notification);
@@ -122,6 +132,7 @@ impl ChatView {
                 self.disconnected = true;
                 self.load_supported = false;
                 self.loading_session = None;
+                self.creating_session = None;
                 self.pending_updates.clear();
                 self.session_list.disconnect(error.clone());
                 self.session_deletion.disconnect();
@@ -150,8 +161,11 @@ impl ChatView {
                 _ => {}
             }
         }
-        let index = self.chat.receive(notification);
-        self.cache_message_images(index);
+        if let Some(index) = self.chat.receive(notification) {
+            self.cache_message_images(index);
+        } else {
+            self.command_menu.reset();
+        }
     }
 
     pub fn choose_permission(&mut self, option: PermissionOptionId, cx: &mut Context<Self>) {

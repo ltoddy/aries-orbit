@@ -1,4 +1,5 @@
 mod actions;
+mod commands;
 mod composer;
 mod events;
 mod layout;
@@ -28,6 +29,8 @@ use crate::session::chat::Chat;
 use crate::session::deletion::SessionDeletion;
 use crate::session::list::SessionList;
 use crate::session::load::SessionLoad;
+use crate::ui::commands::SlashMenu;
+use crate::ui::new_chat::NewChatAction;
 
 pub struct ChatView {
     cwd: PathBuf,
@@ -37,6 +40,7 @@ pub struct ChatView {
     agent: AcpAgentConfig,
     appearance: Appearance,
     input: Entity<TextareaState>,
+    command_menu: SlashMenu,
     chat: Chat,
     bridge: Option<Bridge>,
     receiver: Option<Task<()>>,
@@ -44,6 +48,7 @@ pub struct ChatView {
     pending_updates: Vec<SessionNotification>,
     drafts: HashMap<SessionId, String>,
     loading_session: Option<SessionLoad>,
+    creating_session: Option<NewChatAction>,
     load_supported: bool,
     session_list: SessionList,
     session_scroll: ScrollHandle,
@@ -104,9 +109,15 @@ impl ChatView {
             if let InputEvent::PressEnter { shift: false, .. } = event {
                 let composing =
                     input.update(cx, |input, cx| input.marked_text_range(window, cx).is_some());
-                if !composing {
+                if !composing && !this.complete_selected_command(window, cx) {
                     this.send(window, cx);
                 }
+            }
+            match event {
+                InputEvent::Change => this.command_menu.reset(),
+                InputEvent::Focus => this.command_menu.focus(),
+                InputEvent::Blur => this.command_menu.blur(),
+                _ => {}
             }
             cx.notify();
         });
@@ -130,6 +141,7 @@ impl ChatView {
             agent,
             appearance,
             input,
+            command_menu: SlashMenu::default(),
             chat: Chat::default(),
             bridge: None,
             receiver: None,
@@ -137,6 +149,7 @@ impl ChatView {
             pending_updates: Vec::new(),
             drafts: HashMap::new(),
             loading_session: None,
+            creating_session: None,
             load_supported: false,
             session_list: SessionList::default(),
             session_scroll,

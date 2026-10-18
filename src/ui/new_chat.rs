@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use gpui_kit::*;
 
+use crate::acp::{Command, Event};
 use crate::ui::ChatView;
 
 #[derive(Clone, Copy, Debug)]
@@ -97,8 +98,18 @@ impl ChatView {
             input.focus(window, cx);
         });
         self.connect(window, cx);
-        if matches!(action, NewChatAction::SendPrompt) {
-            self.send(window, cx);
+        self.creating_session = Some(action);
+        self.status = "正在创建会话…".into();
+        if !self
+            .bridge
+            .as_ref()
+            .is_some_and(|bridge| bridge.send(Command::NewSession(self.cwd.clone())).is_ok())
+        {
+            self.apply_event(
+                Event::Disconnected("无法创建会话，请重新连接后重试。".into()),
+                window,
+                cx,
+            );
         }
         cx.notify();
     }

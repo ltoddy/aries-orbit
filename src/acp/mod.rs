@@ -25,6 +25,7 @@ pub use self::permission::Permission;
 
 #[derive(Debug)]
 pub enum Command {
+    NewSession(PathBuf),
     ListSessions,
     DeleteSessions(Vec<SessionId>),
     LoadSession(Box<LoadSessionRequest>),

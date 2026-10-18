@@ -1,11 +1,12 @@
 use gpui_kit::assets::IconName;
 use gpui_kit::component::button::{Button, ButtonVariants};
-use gpui_kit::component::input::Textarea;
+use gpui_kit::component::input::{Enter, Escape, IndentInline, MoveDown, MoveUp, Textarea};
 use gpui_kit::component::{Disableable, Icon, Sizable};
 use gpui_kit::prelude::*;
 use gpui_kit::*;
 
 use crate::ui::ChatView;
+use crate::ui::commands::CommandMenuAction;
 use crate::ui::palette::Palette;
 
 impl ChatView {
@@ -48,73 +49,98 @@ impl ChatView {
                 })
                 .child(
                     div()
+                        .relative()
                         .flex()
-                        .items_center()
-                        .justify_between()
-                        .gap_3()
-                        .px_2()
-                        .text_size(px(12.))
-                        .text_color(p.muted())
+                        .flex_col()
+                        .gap_2()
+                        .capture_action(cx.listener(|this, _: &MoveUp, window, cx| {
+                            this.command_menu_action(CommandMenuAction::Previous, window, cx)
+                        }))
+                        .capture_action(cx.listener(|this, _: &MoveDown, window, cx| {
+                            this.command_menu_action(CommandMenuAction::Next, window, cx)
+                        }))
+                        .capture_action(cx.listener(|this, action: &Enter, window, cx| {
+                            if !action.shift && !action.secondary {
+                                this.command_menu_action(CommandMenuAction::Complete, window, cx);
+                            }
+                        }))
+                        .capture_action(cx.listener(|this, _: &IndentInline, window, cx| {
+                            this.command_menu_action(CommandMenuAction::Complete, window, cx)
+                        }))
+                        .capture_action(cx.listener(|this, _: &Escape, window, cx| {
+                            this.command_menu_action(CommandMenuAction::Dismiss, window, cx)
+                        }))
+                        .children(self.render_commands(p, cx))
                         .child(
                             div()
-                                .id("status")
-                                .aria_value(self.status.clone())
-                                .truncate()
-                                .child(self.status.clone()),
-                        )
-                        .when_some(self.tokens, |row, tokens| {
-                            row.child(format!("{tokens} tokens"))
-                        }),
-                )
-                .child(
-                    div()
-                        .flex()
-                        .items_end()
-                        .gap_3()
-                        .p_2()
-                        .rounded(px(24.))
-                        .border_1()
-                        .border_color(p.border())
-                        .bg(p.input())
-                        .child(
-                            div().id("composer-input").flex_1().min_w_0().px_2().child(
-                                Textarea::new(&self.input)
-                                    .appearance(false)
-                                    .bordered(false)
-                                    .aria_label("消息")
-                                    .w_full(),
-                            ),
-                        )
-                        .child(
-                            Button::new("send")
-                                .primary()
-                                .icon(
-                                    Icon::new(if self.chat.is_busy() {
-                                        IconName::Square
-                                    } else {
-                                        IconName::Send
-                                    })
-                                    .size(px(17.)),
+                                .flex()
+                                .items_center()
+                                .justify_between()
+                                .gap_3()
+                                .px_2()
+                                .text_size(px(12.))
+                                .text_color(p.muted())
+                                .child(
+                                    div()
+                                        .id("status")
+                                        .aria_value(self.status.clone())
+                                        .truncate()
+                                        .child(self.status.clone()),
                                 )
-                                .accessibility_label(if self.chat.is_busy() {
-                                    "停止回复"
-                                } else {
-                                    "发送消息"
-                                })
-                                .size(px(40.))
-                                .rounded(px(14.))
-                                .disabled(if self.chat.is_busy() {
-                                    self.stopping
-                                } else {
-                                    !can_send
-                                })
-                                .on_click(cx.listener(|this, _, window, cx| {
-                                    if this.chat.is_busy() {
-                                        this.stop(window, cx);
-                                    } else {
-                                        this.send(window, cx);
-                                    }
-                                })),
+                                .when_some(self.tokens, |row, tokens| {
+                                    row.child(format!("{tokens} tokens"))
+                                }),
+                        )
+                        .child(
+                            div()
+                                .flex()
+                                .items_end()
+                                .gap_3()
+                                .p_2()
+                                .rounded(px(24.))
+                                .border_1()
+                                .border_color(p.border())
+                                .bg(p.input())
+                                .child(
+                                    div().id("composer-input").flex_1().min_w_0().px_2().child(
+                                        Textarea::new(&self.input)
+                                            .appearance(false)
+                                            .bordered(false)
+                                            .aria_label("消息")
+                                            .w_full(),
+                                    ),
+                                )
+                                .child(
+                                    Button::new("send")
+                                        .primary()
+                                        .icon(
+                                            Icon::new(if self.chat.is_busy() {
+                                                IconName::Square
+                                            } else {
+                                                IconName::Send
+                                            })
+                                            .size(px(17.)),
+                                        )
+                                        .accessibility_label(if self.chat.is_busy() {
+                                            "停止回复"
+                                        } else {
+                                            "发送消息"
+                                        })
+                                        .size(px(40.))
+                                        .rounded(px(14.))
+                                        .disabled(if self.chat.is_busy() {
+                                            self.stopping
+                                        } else {
+                                            !can_send
+                                        })
+                                        .on_click(cx.listener(|this, _, window, cx| {
+                                            if this.chat.is_busy() {
+                                                this.stop(window, cx);
+                                            } else {
+                                                this.send(window, cx);
+                                            }
+                                        })),
+                                ),
                         ),
                 )
                 .child(

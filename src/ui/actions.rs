@@ -44,6 +44,7 @@ impl ChatView {
         !self.chat.is_busy()
             && !self.session_deletion.is_busy()
             && self.loading_session.is_none()
+            && self.creating_session.is_none()
             && !self.choosing_directory
     }
 
@@ -84,12 +85,14 @@ impl ChatView {
 
     pub fn reset_chat(&mut self) {
         self.chat.reset();
+        self.command_menu.reset();
         self.expanded_updates.clear();
         self.images.clear();
         self.session_id = None;
         self.pending_updates.clear();
         self.session_directory_selected = false;
         self.loading_session = None;
+        self.creating_session = None;
         self.stopping = false;
         self.status = "就绪".into();
         self.tokens = None;

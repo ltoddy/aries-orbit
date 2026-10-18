@@ -8,7 +8,7 @@ use tokio::sync::watch;
 
 use crate::acp::{
     Command, DeletionReport, Event, delete_sessions, initialize, list_sessions, load_session,
-    prompt, request_permission, session_update,
+    new_session, prompt, request_permission, session_update,
 };
 
 pub struct AgentConnection {
@@ -76,7 +76,7 @@ impl AgentConnection {
                     })
                     .await;
             }
-            Command::Prompt { .. } | Command::Cancel => {}
+            Command::NewSession(_) | Command::Prompt { .. } | Command::Cancel => {}
         }
     }
 
@@ -93,6 +93,13 @@ impl AgentConnection {
                 },
             };
             match command {
+                Command::NewSession(cwd) => {
+                    self.set_cancelled(false);
+                    let Some(id) = new_session::request(self, cwd).await? else {
+                        break;
+                    };
+                    self.emit(Event::Ready(id)).await;
+                }
                 Command::ListSessions => self.request_sessions().await,
                 Command::DeleteSessions(ids) => {
                     let result = delete_sessions::request(&self.client, ids).await;
