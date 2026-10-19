@@ -26,6 +26,7 @@ impl ChatView {
         let directory = cwd.file_name().unwrap_or(cwd.as_os_str()).to_string_lossy();
         let path = cwd.to_path_buf();
         let delete_path = path.clone();
+        let delete_anchor = format!("project:{}", delete_path.display());
         let has_sessions = sessions.len() > 0 || (include_current && self.session_id.is_some());
         let view = cx.weak_entity();
         div()
@@ -79,35 +80,51 @@ impl ChatView {
                             })),
                     )
                     .child(
-                        Button::new(SharedString::from(format!("project-menu:{}", cwd.display())))
-                            .icon(Icon::new(IconName::Ellipsis).size(px(13.)))
-                            .ghost()
-                            .small()
+                        div()
+                            .relative()
                             .flex_shrink_0()
-                            .tooltip("项目操作")
-                            .accessibility_label(format!("项目 {} 的更多操作", cwd.display()))
-                            .disabled(!self.can_manage_sessions() || !has_sessions)
-                            .dropdown_menu_with_anchor(Anchor::TopRight, move |menu, _, _| {
-                                let view = view.clone();
-                                let delete_path = delete_path.clone();
-                                menu.item(
-                                    PopupMenuItem::new("删除项目会话")
-                                        .icon(IconName::Trash)
-                                        .on_click(move |_, _, cx| {
-                                            let _ = view.update(cx, |this, cx| {
-                                                let ids = this.session_ids(Some(&delete_path));
-                                                this.prepare_session_deletion(
-                                                    ids,
-                                                    format!(
-                                                        "项目 {} 下的会话",
-                                                        delete_path.display()
-                                                    ),
-                                                    cx,
-                                                );
-                                            });
-                                        }),
-                                )
-                            }),
+                            .child(
+                                Button::new(SharedString::from(format!(
+                                    "project-menu:{}",
+                                    cwd.display()
+                                )))
+                                .icon(Icon::new(IconName::Ellipsis).size(px(13.)))
+                                .ghost()
+                                .small()
+                                .tooltip("项目操作")
+                                .accessibility_label(format!("项目 {} 的更多操作", cwd.display()))
+                                .disabled(!self.can_manage_sessions() || !has_sessions)
+                                .dropdown_menu_with_anchor(
+                                    Anchor::TopRight,
+                                    {
+                                        let delete_anchor = delete_anchor.clone();
+                                        move |menu, _, _| {
+                                            let view = view.clone();
+                                            let delete_path = delete_path.clone();
+                                            let delete_anchor = delete_anchor.clone();
+                                            menu.item(
+                                                PopupMenuItem::new("删除项目会话")
+                                                    .icon(IconName::Trash)
+                                                    .on_click(move |_, _, cx| {
+                                                        let _ = view.update(cx, |this, cx| {
+                                                            let ids = this
+                                                                .session_ids(Some(&delete_path));
+                                                            this.prepare_session_deletion(
+                                                                ids,
+                                                                delete_anchor.clone(),
+                                                                cx,
+                                                            );
+                                                        });
+                                                    }),
+                                            )
+                                        }
+                                    },
+                                ),
+                            )
+                            .when_some(
+                                self.render_session_delete_popup(delete_anchor, p, cx),
+                                |button, popup| button.child(popup),
+                            ),
                     ),
             )
             .when(expanded, |group| {

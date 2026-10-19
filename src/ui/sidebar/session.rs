@@ -63,7 +63,8 @@ impl ChatView {
                 .unwrap_or_default()
         );
         let delete_id = session.session_id.clone();
-        let delete_title = title.clone();
+        let action_label = format!("会话 {title} 的更多操作");
+        let delete_anchor = format!("session:{}", delete_id);
         let load_session = session.clone();
         let view = cx.weak_entity();
         div()
@@ -103,32 +104,43 @@ impl ChatView {
                             })),
                     )
                     .child(
-                        Button::new(SharedString::from(format!("session-menu:{id}")))
-                            .icon(Icon::new(IconName::Ellipsis).size(px(13.)))
-                            .ghost()
-                            .small()
+                        div()
+                            .relative()
                             .flex_shrink_0()
-                            .tooltip("会话操作")
-                            .accessibility_label(format!("会话 {delete_title} 的更多操作"))
-                            .disabled(!self.can_manage_sessions())
-                            .dropdown_menu_with_anchor(Anchor::TopRight, move |menu, _, _| {
-                                let view = view.clone();
-                                let delete_id = delete_id.clone();
-                                let delete_title = delete_title.clone();
-                                menu.item(
-                                    PopupMenuItem::new("删除会话").icon(IconName::Trash).on_click(
-                                        move |_, _, cx| {
-                                            let _ = view.update(cx, |this, cx| {
-                                                this.prepare_session_deletion(
-                                                    vec![delete_id.clone()],
-                                                    format!("会话“{delete_title}”"),
-                                                    cx,
-                                                );
-                                            });
-                                        },
-                                    ),
-                                )
-                            }),
+                            .child(
+                                Button::new(SharedString::from(format!("session-menu:{id}")))
+                                    .icon(Icon::new(IconName::Ellipsis).size(px(13.)))
+                                    .ghost()
+                                    .small()
+                                    .tooltip("会话操作")
+                                    .accessibility_label(action_label)
+                                    .disabled(!self.can_manage_sessions())
+                                    .dropdown_menu_with_anchor(Anchor::TopRight, {
+                                        let delete_anchor = delete_anchor.clone();
+                                        move |menu, _, _| {
+                                            let view = view.clone();
+                                            let delete_id = delete_id.clone();
+                                            let delete_anchor = delete_anchor.clone();
+                                            menu.item(
+                                                PopupMenuItem::new("删除会话")
+                                                    .icon(IconName::Trash)
+                                                    .on_click(move |_, _, cx| {
+                                                        let _ = view.update(cx, |this, cx| {
+                                                            this.prepare_session_deletion(
+                                                                vec![delete_id.clone()],
+                                                                delete_anchor.clone(),
+                                                                cx,
+                                                            );
+                                                        });
+                                                    }),
+                                            )
+                                        }
+                                    }),
+                            )
+                            .when_some(
+                                self.render_session_delete_popup(delete_anchor, p, cx),
+                                |button, popup| button.child(popup),
+                            ),
                     ),
             )
             .into_any_element()

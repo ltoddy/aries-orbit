@@ -39,7 +39,7 @@ impl ChatView {
     pub fn prepare_session_deletion(
         &mut self,
         ids: Vec<SessionId>,
-        label: String,
+        anchor: String,
         cx: &mut Context<Self>,
     ) {
         if !self.can_manage_sessions() {
@@ -54,7 +54,7 @@ impl ChatView {
         if ids.is_empty() {
             return;
         }
-        self.session_deletion.prepare_deletion(ids, label);
+        self.session_deletion.prepare_deletion(ids, anchor);
         cx.notify();
     }
 
@@ -77,6 +77,18 @@ impl ChatView {
             self.session_deletion.fail_deletion("无法发送删除请求，请重新连接后重试。".into());
         }
         cx.notify();
+    }
+
+    pub fn cancel_session_deletion(&mut self, cx: &mut Context<Self>) -> bool {
+        if self.session_deletion.pending_deletion().is_none() {
+            return false;
+        }
+        self.session_deletion.cancel_deletion();
+        if self.session_list.take_refresh_request() {
+            self.refresh_sessions(cx);
+        }
+        cx.notify();
+        true
     }
 
     pub fn apply_session_deletion(
@@ -120,60 +132,10 @@ impl ChatView {
         cx.notify();
     }
 
-    pub fn render_session_actions(&self, p: Palette, cx: &mut Context<Self>) -> impl IntoElement {
+    pub fn render_session_actions(&self, p: Palette) -> impl IntoElement {
         let actions = &self.session_deletion;
         div()
             .flex_shrink_0()
-            .when_some(actions.pending_deletion(), |panel, pending| {
-                panel.child(
-                    div()
-                        .p_3()
-                        .mb_2()
-                        .rounded(px(10.))
-                        .border_1()
-                        .border_color(p.border())
-                        .bg(p.input())
-                        .child(div().text_size(px(12.)).child(format!(
-                            "删除{}（{} 个会话）？",
-                            pending.label(),
-                            pending.session_count()
-                        )))
-                        .child(
-                            div()
-                                .mt_2()
-                                .text_size(px(12.))
-                                .text_color(p.muted())
-                                .child("会话记录将被删除，项目文件不受影响。"),
-                        )
-                        .child(
-                            div()
-                                .flex()
-                                .gap_2()
-                                .mt_2()
-                                .child(
-                                    Button::new("confirm-session-deletion")
-                                        .label("删除")
-                                        .danger()
-                                        .small()
-                                        .on_click(cx.listener(|this, _, _, cx| {
-                                            this.confirm_session_deletion(cx)
-                                        })),
-                                )
-                                .child(
-                                    Button::new("cancel-session-deletion")
-                                        .label("取消")
-                                        .small()
-                                        .on_click(cx.listener(|this, _, _, cx| {
-                                            this.session_deletion.cancel_deletion();
-                                            if this.session_list.take_refresh_request() {
-                                                this.refresh_sessions(cx);
-                                            }
-                                            cx.notify();
-                                        })),
-                                ),
-                        ),
-                )
-            })
             .when(actions.is_deleting(), |panel| {
                 panel.child(
                     div().p_2().text_size(px(12.)).text_color(p.muted()).child("正在删除会话…"),
@@ -194,5 +156,59 @@ impl ChatView {
                         .child(error),
                 )
             })
+    }
+
+    pub fn render_session_delete_popup(
+        &self,
+        anchor: String,
+        p: Palette,
+        cx: &mut Context<Self>,
+    ) -> Option<AnyElement> {
+        let pending = self.session_deletion.pending_deletion()?;
+        if !pending.is_anchor(&anchor) {
+            return None;
+        }
+        Some(
+            div()
+                .absolute()
+                .top_0()
+                .right(px(28.))
+                .p_2()
+                .rounded(px(8.))
+                .border_1()
+                .border_color(p.border())
+                .bg(p.background())
+                .shadow_lg()
+                .occlude()
+                .child(
+                    div()
+                        .flex()
+                        .gap_2()
+                        .child(
+                            Button::new(SharedString::from(format!(
+                                "confirm-session-deletion:{anchor}"
+                            )))
+                            .label("删除")
+                            .danger()
+                            .small()
+                            .on_click(
+                                cx.listener(|this, _, _, cx| this.confirm_session_deletion(cx)),
+                            ),
+                        )
+                        .child(
+                            Button::new(SharedString::from(format!(
+                                "cancel-session-deletion:{anchor}"
+                            )))
+                            .label("取消")
+                            .small()
+                            .on_click(cx.listener(
+                                |this, _, _, cx| {
+                                    this.cancel_session_deletion(cx);
+                                },
+                            )),
+                        ),
+                )
+                .into_any_element(),
+        )
     }
 }

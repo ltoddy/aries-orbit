@@ -22,7 +22,7 @@ impl ChatView {
             .flex_col()
             .px_3()
             .child(self.render_session_toolbar(p, cx))
-            .child(self.render_session_actions(p, cx))
+            .child(self.render_session_actions(p))
             .child(
                 div()
                     .id("session-list")

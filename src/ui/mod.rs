@@ -146,6 +146,11 @@ impl ChatView {
                 }
             }
         });
+        let escape = cx.observe_keystrokes(|this, event, _window, cx| {
+            if event.keystroke.key == "escape" {
+                this.cancel_session_deletion(cx);
+            }
+        });
         cx.defer_in(window, |this, window, cx| this.connect(window, cx));
         let session_scroll = ScrollHandle::new();
         let current_session_anchor = ScrollAnchor::for_handle(session_scroll.clone());
@@ -187,7 +192,7 @@ impl ChatView {
             images: HashMap::new(),
             attachment_images: HashMap::new(),
             markdown: HashMap::new(),
-            _subscriptions: vec![changes, quit, system_theme],
+            _subscriptions: vec![changes, quit, system_theme, escape],
         }
     }
 }

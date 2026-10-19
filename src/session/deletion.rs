@@ -18,16 +18,12 @@ pub struct SessionDeletion {
 #[derive(Debug)]
 pub struct PendingDeletion {
     ids: Vec<SessionId>,
-    label: String,
+    anchor: String,
 }
 
 impl PendingDeletion {
-    pub fn label(&self) -> &str {
-        &self.label
-    }
-
-    pub fn session_count(&self) -> usize {
-        self.ids.len()
+    pub fn is_anchor(&self, anchor: &str) -> bool {
+        self.anchor == anchor
     }
 }
 
@@ -47,13 +43,13 @@ impl SessionDeletion {
         }
     }
 
-    pub fn prepare_deletion(&mut self, ids: Vec<SessionId>, label: String) {
+    pub fn prepare_deletion(&mut self, ids: Vec<SessionId>, anchor: String) {
         if ids.is_empty() || self.is_busy() {
             return;
         }
         self.error = None;
         self.notice = None;
-        self.deletion = DeletionState::Confirming(PendingDeletion { ids, label });
+        self.deletion = DeletionState::Confirming(PendingDeletion { ids, anchor });
     }
 
     pub fn begin_deletion(&mut self) -> Option<Vec<SessionId>> {
