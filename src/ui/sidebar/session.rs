@@ -10,6 +10,10 @@ use gpui_kit::*;
 use crate::ui::ChatView;
 use crate::ui::palette::Palette;
 
+fn single_line_session_title(title: &str) -> String {
+    title.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
 impl ChatView {
     pub fn render_current_session(&self, p: Palette, cx: &mut Context<Self>) -> AnyElement {
         if let Some(id) = &self.session_id {
@@ -21,6 +25,8 @@ impl ChatView {
                 )
                 .into_any_element();
         }
+        let title = self.chat.title();
+        let display_title = single_line_session_title(&title);
         div()
             .id("current-chat")
             .anchor_scroll(Some(self.current_session_anchor.clone()))
@@ -28,7 +34,7 @@ impl ChatView {
             .py_1()
             .mb_1()
             .bg(p.hover())
-            .child(div().truncate().font_weight(FontWeight::MEDIUM).child(self.chat.title()))
+            .child(div().truncate().font_weight(FontWeight::MEDIUM).child(display_title))
             .child(div().mt_1().text_size(px(12.)).text_color(p.muted()).child("发送消息开始对话"))
             .into_any_element()
     }
@@ -51,6 +57,7 @@ impl ChatView {
             .filter(|title| !title.trim().is_empty())
             .cloned()
             .unwrap_or_else(|| if current { self.chat.title() } else { id.clone() });
+        let display_title = single_line_session_title(&title);
         let details = format!(
             "{}\n{}\n{}{}",
             title,
@@ -97,7 +104,7 @@ impl ChatView {
                                     .text_left()
                                     .truncate()
                                     .font_weight(FontWeight::MEDIUM)
-                                    .child(title),
+                                    .child(display_title),
                             )
                             .on_click(cx.listener(move |this, _, _, cx| {
                                 this.load_session(load_session.clone(), cx);

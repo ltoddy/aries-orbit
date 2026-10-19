@@ -1,5 +1,6 @@
 use gpui_kit::assets::IconName;
 use gpui_kit::component::Icon;
+use gpui_kit::component::scroll::{Scrollbar, ScrollbarMode};
 use gpui_kit::component::text::{TextView, TextViewState};
 use gpui_kit::prelude::*;
 use gpui_kit::*;
@@ -64,12 +65,14 @@ impl ChatView {
         let count = messages + usize::from(error.is_some());
         let view = cx.weak_entity();
         let timeline = self.timeline.clone();
+        let scrollbar = timeline.clone();
         div()
             .id("timeline")
             .flex_1()
             .min_h_0()
             .px_6()
             .py_8()
+            .relative()
             .child(
                 div().max_w(px(768.)).w_full().h_full().mx_auto().child(
                     list(timeline, move |index, _window, cx| {
@@ -98,6 +101,11 @@ impl ChatView {
                     .w_full()
                     .h_full(),
                 ),
+            )
+            .child(
+                Scrollbar::vertical(&scrollbar)
+                    .id("timeline-scrollbar")
+                    .mode(ScrollbarMode::Always),
             )
             .when(count == 0, |timeline| timeline)
             .into_any_element()
