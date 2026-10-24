@@ -74,7 +74,8 @@ impl ChatView {
             .id("timeline")
             .flex_1()
             .min_h_0()
-            .px_3()
+            .pl_3()
+            .pr_4()
             .py_2()
             .relative()
             .child(

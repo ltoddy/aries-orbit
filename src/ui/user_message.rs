@@ -1,3 +1,4 @@
+use gpui_kit::component::{Icon, IconName, Sizable};
 use gpui_kit::prelude::*;
 use gpui_kit::*;
 
@@ -16,9 +17,32 @@ impl ChatView {
             .id(("message", index))
             .aria_label("用户消息")
             .aria_value(message.text().to_owned())
+            .group("user-message")
             .w_full()
             .flex()
+            .items_end()
             .justify_end()
+            .gap_1()
+            .when(!message.text().is_empty(), |row| {
+                let text = message.text().to_owned();
+                row.child(
+                    div()
+                        .id(("copy-message", index))
+                        .w(px(24.))
+                        .h(px(24.))
+                        .flex_shrink_0()
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .cursor_pointer()
+                        .opacity(0.)
+                        .group_hover("user-message", |this| this.opacity(1.))
+                        .on_click(move |_, _, cx| {
+                            cx.write_to_clipboard(ClipboardItem::new_string(text.clone()));
+                        })
+                        .child(Icon::new(IconName::Copy).xsmall().text_color(p.muted())),
+                )
+            })
             .child(
                 div()
                     .min_w_0()

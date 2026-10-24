@@ -24,11 +24,10 @@ fn diff_shape(patch: &str) -> (usize, usize) {
     for line in patch.lines() {
         if line.starts_with("@@") {
             hunks += 1;
-        } else if line.starts_with(' ') {
-            rows += 1;
-        } else if line.starts_with('+') && !line.starts_with("+++") {
-            rows += 1;
-        } else if line.starts_with('-') && !line.starts_with("---") {
+        } else if line.starts_with(' ')
+            || (line.starts_with('+') && !line.starts_with("+++"))
+            || (line.starts_with('-') && !line.starts_with("---"))
+        {
             rows += 1;
         }
     }
