@@ -25,10 +25,6 @@ fn tool_icon(kind: ToolKind) -> IconName {
     }
 }
 
-fn single_line_title(title: &str) -> String {
-    title.split_whitespace().collect::<Vec<_>>().join(" ")
-}
-
 impl ChatView {
     pub fn render_tool_message(
         &self,
@@ -51,7 +47,7 @@ impl ChatView {
             }
         };
         let color = if failed { p.danger() } else { p.muted() };
-        let title = single_line_title(tool.title());
+        let title = crate::ui::single_line(tool.title());
         let details = format!("{} · {status}", tool.title());
         div()
             .id(("message", index))

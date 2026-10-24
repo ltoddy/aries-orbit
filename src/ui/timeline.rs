@@ -85,8 +85,7 @@ impl ChatView {
                         view.update(cx, |this, cx| {
                             let gap = match this.chat.messages().get(index).map(|m| m.role()) {
                                 Some(Role::User) => px(12.),
-                                Some(_) => px(4.),
-                                None => px(4.),
+                                _ => px(4.),
                             };
                             div()
                                 .w_full()

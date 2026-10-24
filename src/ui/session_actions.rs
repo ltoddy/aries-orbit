@@ -127,7 +127,6 @@ impl ChatView {
                 .join("\n")
         });
         self.session_deletion.finish_deletion(notice, error);
-        self.session_list.take_refresh_request();
         self.refresh_sessions(cx);
         cx.notify();
     }

@@ -41,6 +41,10 @@ use crate::session::load::SessionLoad;
 use crate::ui::commands::SlashMenu;
 use crate::ui::new_chat::NewChatAction;
 
+pub(crate) fn single_line(text: &str) -> String {
+    text.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
 pub struct ChatView {
     cwd: PathBuf,
     choosing_directory: bool,

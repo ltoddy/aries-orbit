@@ -10,10 +10,6 @@ use gpui_kit::*;
 use crate::ui::ChatView;
 use crate::ui::palette::Palette;
 
-fn single_line_session_title(title: &str) -> String {
-    title.split_whitespace().collect::<Vec<_>>().join(" ")
-}
-
 impl ChatView {
     pub fn render_current_session(&self, p: Palette, cx: &mut Context<Self>) -> AnyElement {
         if let Some(id) = &self.session_id {
@@ -26,7 +22,7 @@ impl ChatView {
                 .into_any_element();
         }
         let title = self.chat.title();
-        let display_title = single_line_session_title(&title);
+        let display_title = crate::ui::single_line(&title);
         div()
             .id("current-chat")
             .anchor_scroll(Some(self.current_session_anchor.clone()))
@@ -57,7 +53,7 @@ impl ChatView {
             .filter(|title| !title.trim().is_empty())
             .cloned()
             .unwrap_or_else(|| if current { self.chat.title() } else { id.clone() });
-        let display_title = single_line_session_title(&title);
+        let display_title = crate::ui::single_line(&title);
         let details = format!(
             "{}\n{}\n{}{}",
             title,

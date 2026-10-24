@@ -43,16 +43,6 @@ impl ChatView {
         };
         let update = &notification.update;
         if message.tool_call().is_some() {
-            if matches!(update, SessionUpdate::ToolCallUpdate(update) if update.fields.content.is_none())
-            {
-                return;
-            }
-            self.attachment_images.retain(|(message_index, _), _| *message_index != index);
-            for (attachment_index, content) in message.attachments() {
-                if let Some(image) = content_image(content) {
-                    self.attachment_images.insert((index, attachment_index), image);
-                }
-            }
             return;
         }
         if let SessionUpdate::UserMessageChunk(chunk) = update {
