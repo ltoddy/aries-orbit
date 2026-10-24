@@ -2,6 +2,7 @@ use gpui_kit::assets::IconName;
 use gpui_kit::component::Icon;
 use gpui_kit::component::scroll::{Scrollbar, ScrollbarMode};
 use gpui_kit::component::text::{TextView, TextViewState, TextViewStyle};
+use gpui_kit::component::tooltip::Tooltip;
 use gpui_kit::prelude::*;
 use gpui_kit::*;
 
@@ -66,7 +67,6 @@ impl ChatView {
         self.sync_timeline_items();
         let messages = self.chat.messages().len();
         let error = self.chat.error().map(str::to_owned);
-        let count = messages + usize::from(error.is_some());
         let view = cx.weak_entity();
         let timeline = self.timeline.clone();
         let scrollbar = timeline.clone();
@@ -74,7 +74,7 @@ impl ChatView {
             .id("timeline")
             .flex_1()
             .min_h_0()
-            .pl_3()
+            .pl_5()
             .pr_4()
             .py_2()
             .relative()
@@ -117,7 +117,139 @@ impl ChatView {
                     .id("timeline-scrollbar")
                     .mode(ScrollbarMode::Always),
             )
-            .when(count == 0, |timeline| timeline)
+            .child(self.render_user_anchors(p, cx))
+            .child(self.render_scroll_controls(p, cx))
+            .into_any_element()
+    }
+
+    fn render_scroll_controls(&self, p: Palette, cx: &mut Context<Self>) -> AnyElement {
+        let timeline = self.timeline.clone();
+        let top_timeline = timeline.clone();
+        let view = cx.weak_entity();
+        let top_view = view.clone();
+        div()
+            .absolute()
+            .bottom(px(12.))
+            .right(px(20.))
+            .flex()
+            .flex_col()
+            .gap_1()
+            .child(Self::scroll_control(
+                "scroll-to-top",
+                IconName::ArrowUp,
+                "滚动到顶部",
+                p,
+                move |cx| {
+                    top_timeline.scroll_to(ListOffset { item_ix: 0, offset_in_item: px(0.) });
+                    let _ = top_view.update(cx, |_, cx| cx.notify());
+                },
+            ))
+            .child(Self::scroll_control(
+                "scroll-to-bottom",
+                IconName::ArrowDown,
+                "滚动到底部",
+                p,
+                move |cx| {
+                    timeline.scroll_to_end();
+                    let _ = view.update(cx, |_, cx| cx.notify());
+                },
+            ))
+            .into_any_element()
+    }
+
+    fn scroll_control(
+        id: &'static str,
+        icon: IconName,
+        label: &'static str,
+        p: Palette,
+        on_click: impl Fn(&mut App) + 'static,
+    ) -> AnyElement {
+        div()
+            .id(id)
+            .size(px(32.))
+            .rounded_full()
+            .border_1()
+            .border_color(p.border())
+            .bg(p.input())
+            .flex()
+            .items_center()
+            .justify_center()
+            .cursor_pointer()
+            .hover(|style| style.bg(p.muted()))
+            .tooltip(move |window, cx| {
+                Tooltip::element(move |_, _| div().child(label)).build(window, cx)
+            })
+            .on_click(move |_, _, cx| on_click(cx))
+            .child(Icon::new(icon).size(px(16.)).text_color(p.foreground()))
+            .into_any_element()
+    }
+
+    fn render_user_anchors(&self, p: Palette, cx: &mut Context<Self>) -> AnyElement {
+        let timeline = self.timeline.clone();
+        let view = cx.weak_entity();
+        let anchors = self
+            .chat
+            .messages()
+            .iter()
+            .enumerate()
+            .filter(|(_, message)| matches!(message.role(), Role::User))
+            .map(|(index, message)| (index, message.text().to_owned()))
+            .collect::<Vec<_>>();
+        if anchors.is_empty() {
+            return div().into_any_element();
+        }
+        div()
+            .id("user-anchors")
+            .absolute()
+            .left(px(4.))
+            .top_0()
+            .bottom_0()
+            .w(px(12.))
+            .py_3()
+            .flex()
+            .flex_col()
+            .items_center()
+            .gap_1()
+            .overflow_y_scroll()
+            .children(anchors.into_iter().map(|(index, text)| {
+                let timeline = timeline.clone();
+                let view = view.clone();
+                let preview = text.chars().take(300).collect::<String>();
+                let group = SharedString::from(format!("user-anchor-{index}"));
+                div()
+                    .id(("user-anchor", index))
+                    .group(group.clone())
+                    .w(px(12.))
+                    .h(px(8.))
+                    .flex_shrink_0()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .cursor_pointer()
+                    .tooltip(move |window, cx| {
+                        let preview = preview.clone();
+                        Tooltip::element(move |_, _| {
+                            div()
+                                .max_w(px(360.))
+                                .whitespace_normal()
+                                .line_height(px(20.))
+                                .child(preview.clone())
+                        })
+                        .build(window, cx)
+                    })
+                    .on_click(move |_, _, cx| {
+                        timeline.scroll_to_reveal_item(index);
+                        let _ = view.update(cx, |_, cx| cx.notify());
+                    })
+                    .child(
+                        div()
+                            .w(px(10.))
+                            .h(px(2.))
+                            .rounded_full()
+                            .bg(p.border())
+                            .group_hover(group, |style| style.bg(p.foreground())),
+                    )
+            }))
             .into_any_element()
     }
 
