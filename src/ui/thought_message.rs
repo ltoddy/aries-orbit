@@ -85,7 +85,7 @@ impl ChatView {
                             .scrollable(false)
                             .w_full()
                             .text_size(px(12.))
-                            .line_height(px(20.))
+                            .line_height(px(18.))
                             .text_color(p.muted()),
                     ),
                 )

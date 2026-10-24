@@ -75,7 +75,7 @@ pub struct ChatView {
     expanded_thoughts: HashSet<usize>,
     collapsed_streaming_thoughts: HashSet<usize>,
     tool_diffs: HashMap<(usize, usize), Entity<DiffState>>,
-    tool_diff_rows: HashMap<(usize, usize), usize>,
+    tool_diff_rows: HashMap<(usize, usize), (usize, usize)>,
     images: HashMap<usize, Vec<Arc<Image>>>,
     attachment_images: HashMap<(usize, usize), Arc<Image>>,
     markdown: HashMap<usize, Entity<TextViewState>>,

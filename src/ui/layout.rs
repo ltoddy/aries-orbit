@@ -25,7 +25,7 @@ impl ChatView {
                     .flex_col()
                     .child(
                         div()
-                            .h(px(56.))
+                            .h(px(44.))
                             .flex_shrink_0()
                             .px_4()
                             .flex()

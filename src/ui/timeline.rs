@@ -1,13 +1,17 @@
 use gpui_kit::assets::IconName;
 use gpui_kit::component::Icon;
 use gpui_kit::component::scroll::{Scrollbar, ScrollbarMode};
-use gpui_kit::component::text::{TextView, TextViewState};
+use gpui_kit::component::text::{TextView, TextViewState, TextViewStyle};
 use gpui_kit::prelude::*;
 use gpui_kit::*;
 
 use crate::session::chat::Role;
 use crate::ui::ChatView;
 use crate::ui::palette::Palette;
+
+pub(crate) fn markdown_style() -> TextViewStyle {
+    TextViewStyle { paragraph_gap: rems(0.35), ..Default::default() }
+}
 
 impl ChatView {
     pub fn render_timeline(&mut self, p: Palette, cx: &mut Context<Self>) -> AnyElement {
@@ -70,24 +74,29 @@ impl ChatView {
             .id("timeline")
             .flex_1()
             .min_h_0()
-            .px_6()
-            .py_8()
+            .px_3()
+            .py_2()
             .relative()
             .child(
                 div().max_w(px(768.)).w_full().h_full().mx_auto().child(
-                    list(timeline, move |index, _window, cx| {
+                    list(timeline, move |index, window, cx| {
                         let view = view.clone();
                         view.update(cx, |this, cx| {
+                            let gap = match this.chat.messages().get(index).map(|m| m.role()) {
+                                Some(Role::User) => px(12.),
+                                Some(_) => px(4.),
+                                None => px(4.),
+                            };
                             div()
                                 .w_full()
-                                .pb_5()
+                                .pb(gap)
                                 .child(if index < messages {
-                                    this.timeline_item(index, p, cx)
+                                    this.timeline_item(index, p, window, cx)
                                 } else {
                                     div()
                                         .id("chat-error")
                                         .rounded(px(12.))
-                                        .p_3()
+                                        .p_2()
                                         .border_1()
                                         .border_color(p.border())
                                         .text_color(p.danger())
@@ -135,11 +144,17 @@ impl ChatView {
         state
     }
 
-    fn timeline_item(&mut self, index: usize, p: Palette, cx: &mut Context<Self>) -> AnyElement {
+    fn timeline_item(
+        &mut self,
+        index: usize,
+        p: Palette,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
         self.cache_visible_images(index);
         let message = self.chat.messages()[index].clone();
         if let Some(tool) = message.tool_call() {
-            return self.render_tool_message(index, tool, p, cx);
+            return self.render_tool_message(index, tool, p, window, cx);
         }
         if message.role() == Role::User {
             return self.render_user_message(index, &message, p);
@@ -178,11 +193,12 @@ impl ChatView {
             })
             .child(
                 TextView::new(&self.markdown_state(index, message.text(), cx))
+                    .style(markdown_style())
                     .selectable(true)
                     .scrollable(false)
                     .w_full()
                     .text_size(px(14.))
-                    .line_height(px(25.))
+                    .line_height(px(22.))
                     .into_any_element(),
             )
             .when_some(self.images.get(&index), |body, images| {

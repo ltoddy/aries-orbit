@@ -35,7 +35,8 @@ impl ChatView {
         index: usize,
         tool: &ToolCallState,
         p: Palette,
-        _cx: &mut Context<Self>,
+        window: &Window,
+        cx: &mut Context<Self>,
     ) -> AnyElement {
         let failed = tool.call().status == ToolCallStatus::Failed;
         let (status, status_icon) = if tool.is_interrupted() {
@@ -59,7 +60,7 @@ impl ChatView {
             .min_w_0()
             .flex()
             .flex_col()
-            .gap_2()
+            .gap_1()
             .child(
                 div()
                     .id(("tool-header", index))
@@ -113,7 +114,7 @@ impl ChatView {
                             )),
                     ),
             )
-            .child(self.render_tool_content(index, tool, p))
+            .child(self.render_tool_content(index, tool, p, window, cx))
             .into_any_element()
     }
 }

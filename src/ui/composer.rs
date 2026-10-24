@@ -12,7 +12,7 @@ use crate::ui::palette::Palette;
 impl ChatView {
     pub fn composer(&self, p: Palette, cx: &mut Context<Self>) -> impl IntoElement {
         let can_send = self.can_send(cx);
-        div().flex_shrink_0().p_4().bg(p.background()).child(
+        div().flex_shrink_0().px_4().py_2().bg(p.background()).child(
             div()
                 .w_full()
                 .max_w(px(768.))
