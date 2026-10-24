@@ -16,14 +16,12 @@ impl ChatView {
     pub fn sidebar(&self, p: Palette, cx: &mut Context<Self>) -> impl IntoElement {
         div()
             .id("sidebar")
-            .w(px(288.))
+            .w_full()
             .h_full()
             .flex_shrink_0()
             .flex()
             .flex_col()
             .bg(p.sidebar())
-            .border_r_1()
-            .border_color(p.border())
             .child(
                 div()
                     .h(px(56.))

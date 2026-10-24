@@ -12,10 +12,10 @@ use crate::ui::palette::Palette;
 impl ChatView {
     pub fn composer(&self, p: Palette, cx: &mut Context<Self>) -> impl IntoElement {
         let can_send = self.can_send(cx);
-        div().flex_shrink_0().px_4().py_2().bg(p.background()).child(
+        div().flex_shrink_0().px_3().py_1().bg(p.background()).child(
             div()
                 .w_full()
-                .max_w(px(768.))
+                .max_w(px(880.))
                 .mx_auto()
                 .flex()
                 .flex_col()
@@ -52,7 +52,7 @@ impl ChatView {
                         .relative()
                         .flex()
                         .flex_col()
-                        .gap_2()
+                        .gap_1()
                         .capture_action(cx.listener(|this, _: &MoveUp, window, cx| {
                             this.command_menu_action(CommandMenuAction::Previous, window, cx)
                         }))
@@ -88,8 +88,8 @@ impl ChatView {
                                 .flex()
                                 .items_end()
                                 .gap_2()
-                                .p(px(6.))
-                                .rounded(px(18.))
+                                .p(px(4.))
+                                .rounded(px(14.))
                                 .border_1()
                                 .border_color(p.border())
                                 .bg(p.input())

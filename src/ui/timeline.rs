@@ -78,7 +78,7 @@ impl ChatView {
             .py_2()
             .relative()
             .child(
-                div().max_w(px(768.)).w_full().h_full().mx_auto().child(
+                div().max_w(px(880.)).w_full().h_full().mx_auto().child(
                     list(timeline, move |index, window, cx| {
                         let view = view.clone();
                         view.update(cx, |this, cx| {
